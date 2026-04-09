@@ -3,55 +3,102 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>JPL Horizons 3D Plotter</title>
+    <title>Horizons 3D | Orbital Dynamics</title>
     <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet">
     <style>
         :root {
-            --bg-color: #0b0e14;
-            --panel-color: #161b22;
-            --accent-color: #00d2ff;
-            --accent-hover: #0099ff;
+            --bg-deep: #020408;
+            --panel-glass: rgba(13, 17, 23, 0.75);
+            --accent: #00d2ff;
+            --accent-glow: rgba(0, 210, 255, 0.4);
             --text-main: #e6edf3;
-            --text-muted: #8b949e;
-            --border-color: #30363d;
+            --text-dim: #8b949e;
+            --border: rgba(255, 255, 255, 0.1);
         }
 
-        body, html { height: 100%; margin: 0; overflow: hidden; }
-        body { font-family: 'Segoe UI', Roboto, sans-serif; background: var(--bg-color); color: var(--text-main); display: flex; }
-
+        body, html { height: 100%; margin: 0; overflow: hidden; font-family: 'Inter', sans-serif; background: var(--bg-deep); color: var(--text-main); }
+        
+        /* Sidebar Glass Effect */
         .sidebar {
-            width: 320px; min-width: 320px; background: var(--panel-color);
-            border-right: 1px solid var(--border-color); padding: 24px;
-            display: flex; flex-direction: column; gap: 18px; overflow-y: auto;
-            box-shadow: 4px 0 10px rgba(0,0,0,0.3); z-index: 10;
+            width: 340px; min-width: 340px; height: 100vh;
+            background: var(--panel-glass);
+            backdrop-filter: blur(15px);
+            border-right: 1px solid var(--border);
+            padding: 30px;
+            display: flex; flex-direction: column;
+            z-index: 100;
+            box-shadow: 10px 0 30px rgba(0,0,0,0.5);
+            overflow-y: auto;
         }
 
-        h2 { font-size: 1.1rem; margin: 0 0 5px 0; color: var(--accent-color); letter-spacing: 1px; text-transform: uppercase; border-bottom: 1px solid var(--border-color); padding-bottom: 15px; }
+        h2 { 
+            font-size: 0.9rem; margin: 0 0 25px 0; color: var(--accent); 
+            letter-spacing: 3px; text-transform: uppercase; font-weight: 600;
+            border-left: 3px solid var(--accent); padding-left: 15px;
+        }
 
-        .input-group { display: flex; flex-direction: column; gap: 5px; }
-        .input-group label { font-size: 0.85rem; font-weight: 600; }
-        .input-group span { font-size: 0.72rem; color: var(--text-muted); line-height: 1.2; }
+        .input-group { margin-bottom: 22px; display: flex; flex-direction: column; gap: 6px; }
+        .input-group label { font-size: 0.8rem; font-weight: 600; color: var(--text-main); }
+        .input-group span { font-size: 0.75rem; color: var(--text-dim); line-height: 1.4; }
 
-        input, select { padding: 10px; background: #0d1117; border: 1px solid var(--border-color); border-radius: 6px; color: white; font-size: 0.9rem; }
-        input:focus { outline: none; border-color: var(--accent-color); }
+        input, select { 
+            padding: 12px; background: rgba(0, 0, 0, 0.4); 
+            border: 1px solid var(--border); border-radius: 8px; 
+            color: #fff; font-size: 0.85rem; font-family: 'JetBrains Mono', monospace;
+            transition: all 0.3s ease;
+        }
+        input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 10px var(--accent-glow); }
 
-        .step-row { display: flex; gap: 5px; }
-        #stepVal { width: 60px; } #stepUnit { flex-grow: 1; }
+        .step-row { display: flex; gap: 8px; }
+        #stepVal { width: 70px; }
 
-        button { background: var(--accent-color); color: #000; padding: 12px; border-radius: 6px; border: none; cursor: pointer; font-weight: bold; margin-top: 10px; transition: background 0.2s; }
-        button:hover { background: var(--accent-hover); }
+        button { 
+            background: linear-gradient(135deg, #00d2ff 0%, #0072ff 100%);
+            color: #000; padding: 15px; border-radius: 8px; border: none; 
+            cursor: pointer; font-weight: 700; font-size: 0.85rem;
+            text-transform: uppercase; letter-spacing: 1px;
+            transition: all 0.3s ease; margin-top: 10px;
+            box-shadow: 0 4px 15px rgba(0, 210, 255, 0.2);
+        }
+        button:hover { transform: translateY(-2px); box-shadow: 0 6px 20px var(--accent-glow); filter: brightness(1.1); }
 
-        .main-content { flex-grow: 1; position: relative; background: #000; min-width: 0; min-height: 0; display: flex; }
-        #plot { flex: 1; width: 100%; height: 100%; }
+        /* HUD Status */
+        #status { 
+            position: absolute; top: 25px; right: 25px; 
+            padding: 10px 18px; background: rgba(0,0,0,0.6);
+            backdrop-filter: blur(5px); border-radius: 30px;
+            font-size: 0.75rem; border: 1px solid var(--accent);
+            color: var(--accent); z-index: 100;
+            font-family: 'JetBrains Mono', monospace;
+            letter-spacing: 1px;
+        }
 
-        #status { position: absolute; top: 20px; right: 20px; padding: 8px 15px; background: rgba(0,0,0,0.8); border-radius: 20px; font-size: 0.8rem; border: 1px solid var(--border-color); color: var(--accent-color); z-index: 100; }
+        .main-content { flex: 1; position: relative; background: #000; }
+        #plot { width: 100%; height: 100%; }
 
-        #selectionOverlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); z-index: 2000; justify-content: center; align-items: center; }
-        .selection-box { background: var(--panel-color); padding: 30px; border-radius: 12px; max-width: 600px; width: 90%; max-height: 80vh; overflow-y: auto; border: 1px solid var(--border-color); box-shadow: 0 10px 40px rgba(0,0,0,0.5); }
-        .selection-box h3 { color: var(--accent-color); margin-top: 0; }
-        .object-item { display: block; width: 100%; text-align: left; padding: 12px; margin: 8px 0; background: #0d1117; color: var(--text-main); border: 1px solid var(--border-color); cursor: pointer; border-radius: 6px; font-size: 0.9rem; }
-        .object-item:hover { border-color: var(--accent-color); background: #1c2128; }
-        .close-btn { background: #444; color: white; margin-top: 15px; width: 100%; }
+        /* Overlay Styling */
+        #selectionOverlay { 
+            display: none; position: fixed; inset: 0; 
+            background: rgba(0,0,0,0.85); backdrop-filter: blur(8px);
+            z-index: 2000; justify-content: center; align-items: center; 
+        }
+        .selection-box { 
+            background: #161b22; padding: 35px; border-radius: 15px; 
+            max-width: 550px; width: 90%; max-height: 80vh; overflow-y: auto;
+            border: 1px solid var(--border); box-shadow: 0 0 40px rgba(0,0,0,1);
+        }
+        .object-item { 
+            display: block; width: 100%; text-align: left; padding: 14px; 
+            margin: 10px 0; background: #0d1117; color: var(--text-main); 
+            border: 1px solid var(--border); cursor: pointer; border-radius: 8px; 
+            font-family: 'JetBrains Mono', monospace; font-size: 0.85rem;
+        }
+        .object-item:hover { border-color: var(--accent); background: #1c2128; color: var(--accent); }
+        .close-btn { background: #30363d; color: #fff; margin-top: 15px; width: 100%; }
+
+        ::-webkit-scrollbar { width: 5px; }
+        ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 10px; }
     </style>
 </head>
 <body>
@@ -83,7 +130,7 @@
 
         <div class="input-group">
             <label for="startDate">Start Date/Time</label>
-            <span>UTC format (YYYY-MM-DD HH:MM:SS.SSSS).</span>
+            <span>UTC format (YYYY-MM-DD HH:MM:SS).</span>
             <input type="text" id="startDate" value="2020-02-10 00:00:00">
         </div>
 
@@ -110,14 +157,14 @@
     </div>
 
     <div class="main-content">
-        <div id="status">System Ready</div>
+        <div id="status">SYSTEM READY</div>
         <div id="plot"></div>
     </div>
 
     <div id="selectionOverlay">
         <div class="selection-box">
-            <h3 id="selectionTitle">Matches Found</h3>
-            <p id="selectionText" style="color: var(--text-muted); font-size: 0.9rem;"></p>
+            <h3 id="selectionTitle" style="color: var(--accent); margin-top:0;">Matches Found</h3>
+            <p id="selectionText" style="color: var(--text-dim); font-size: 0.9rem;"></p>
             <div id="objectList"></div>
             <button class="close-btn" onclick="document.getElementById('selectionOverlay').style.display='none'">Cancel</button>
         </div>
@@ -129,7 +176,7 @@
 
         async function fetchAndPlot() {
             const statusEl = document.getElementById('status');
-            statusEl.innerText = "Fetching Data...";
+            statusEl.innerText = "LINKING TO JPL...";
             
             const targetInput = document.getElementById('objId').value;
             const centerInput = document.getElementById('centId').value;
@@ -145,7 +192,7 @@
                 const cData = await cRes.json();
                 if (cData.result && cData.result.includes("Number of matches")) {
                     showSelection(cData.result, "centId", "Select Center Body");
-                    statusEl.innerText = "Select Center Body...";
+                    statusEl.innerText = "WAITING FOR INPUT...";
                     return;
                 }
 
@@ -168,19 +215,16 @@
                 const response = await fetch(proxyUrl);
                 const data = await response.json();
 
-                // Ambiguity Check for Target
                 if (data.result && data.result.includes("Number of matches")) {
                     showSelection(data.result, "objId", "Select Target Object");
-                    statusEl.innerText = "Select Target...";
+                    statusEl.innerText = "WAITING FOR INPUT...";
                     return;
                 }
 
-                // Error Check + Show full URL in alert if it fails
                 if (data.result && (data.result.includes("INPUT ERROR") || data.result.includes("Too many constants"))) {
-                    throw new Error(`JPL API Error. Raw URL:\n\n${nasaUrl}`);
+                    throw new Error(`JPL API Error. Please check your IDs or dates.`);
                 }
 
-                // Legend Names Extraction
                 let targetName = targetInput, centerName = centerInput;
                 const tNameMatch = data.result.match(/Target body name:\s+([^({\n]+)/);
                 if (tNameMatch) targetName = tNameMatch[1].trim();
@@ -204,22 +248,21 @@
                     }
                 }
 
-                if (x.length === 0) throw new Error(`No data found. Raw URL:\n\n${nasaUrl}`);
+                if (x.length === 0) throw new Error(`No vector data found for specified range.`);
 
                 plotData(x, y, z, dates, targetName, centerName);
-                statusEl.innerText = `Viewing: ${targetName}`;
+                statusEl.innerText = `VIEWING: ${targetName.toUpperCase()}`;
 
             } catch (err) {
-                statusEl.innerText = "Error";
+                statusEl.innerText = "ERROR";
                 alert(err.message);
-                console.error(err);
             }
         }
 
         function showSelection(resultText, targetFieldId, title) {
             const listDiv = document.getElementById('objectList');
             document.getElementById('selectionTitle').innerText = title;
-            document.getElementById('selectionText').innerText = `Specific identity required for "${document.getElementById(targetFieldId).value}":`;
+            document.getElementById('selectionText').innerText = `Multiple matches found for "${document.getElementById(targetFieldId).value}":`;
             listDiv.innerHTML = "";
             const lines = resultText.split('\n');
             lines.forEach(line => {
@@ -249,25 +292,26 @@
 
             const trace = {
                 x: x, y: y, z: z, mode: 'lines', type: 'scatter3d',
-                text: dates, line: { width: 3, color: '#00d2ff' }, name: tName
+                text: dates, line: { width: 4, color: '#00d2ff' }, name: tName,
+                hoverlabel: { bgcolor: '#0b0e14', font: { color: '#fff', family: 'JetBrains Mono' } }
             };
 
             const center = {
                 x: [0], y: [0], z: [0], mode: 'markers', type: 'scatter3d',
-                marker: { size: 4, color: '#fff', line: { color: '#00d2ff', width: 1 } }, name: cName
+                marker: { size: 6, color: '#fff', line: { color: '#00d2ff', width: 2 } }, name: cName
             };
 
             Plotly.newPlot('plot', [center, trace], {
                 paper_bgcolor: 'rgba(0,0,0,0)', margin: {l:0, r:0, b:0, t:0},
                 scene: {
-                    aspectmode: 'scene',
-                    xaxis: { range: [midX - range, midX + range], title: 'X (km)', gridcolor: '#1a1a1a' },
-                    yaxis: { range: [midY - range, midY + range], title: 'Y (km)', gridcolor: '#1a1a1a' },
-                    zaxis: { range: [midZ - range, midZ + range], title: 'Z (km)', gridcolor: '#1a1a1a' }
+                    aspectmode: 'cube',
+                    xaxis: { range: [midX - range, midX + range], title: 'X (km)', gridcolor: '#1a1a1a', zerolinecolor: '#333' },
+                    yaxis: { range: [midY - range, midY + range], title: 'Y (km)', gridcolor: '#1a1a1a', zerolinecolor: '#333' },
+                    zaxis: { range: [midZ - range, midZ + range], title: 'Z (km)', gridcolor: '#1a1a1a', zerolinecolor: '#333' }
                 },
-                legend: { font: { color: 'white' }, x: 0.1, y: 0.9 },
+                legend: { font: { color: 'white', size: 11 }, x: 0.1, y: 0.9 },
                 uirevision: 'true'
-            }, { responsive: true });
+            }, { responsive: true, displaylogo: false });
         }
 
         fetchAndPlot();
