@@ -247,13 +247,12 @@ button.primary-btn { width: 100%; background: linear-gradient(135deg, #00d2ff 0%
             return match ? match[1].trim() : null;
         }
 
-let currentAbortController = null; // Essential for mobile stability
+// Variable to track if a fetch is already in progress to prevent "Double-Tap" bugs on mobile
+let isFetching = false;
 
 async function fetchAndPlot() {
-    // 1. Cancel any "hanging" previous requests to avoid mobile network collisions
-    if (currentAbortController) { currentAbortController.abort(); }
-    currentAbortController = new AbortController();
-    const signal = currentAbortController.signal;
+    if (isFetching) return;
+    isFetching = true;
 
     const statusEl = document.getElementById('status');
     const centerInput = document.getElementById('centId').value;
@@ -261,73 +260,78 @@ async function fetchAndPlot() {
     const step = `${document.getElementById('stepVal').value} ${document.getElementById('stepUnit').value}`;
     const cleanRefPlane = document.getElementById('refPlane').value.charAt(0);
 
-    if (targets.length === 0) { alert("Add at least one target."); return; }
+    if (targets.length === 0) { 
+        alert("Add at least one target."); 
+        isFetching = false; 
+        return; 
+    }
 
     let rawDataSets = [];
     let attempts = 0;
     const maxAttempts = 5; 
 
-    // Use a loop to handle date corrections without "Recursive Call" overhead
+    // WHILE loop is much more stable on mobile than recursive function calls
     while (attempts < maxAttempts) {
         let currentStartStr = document.getElementById('startDate').value.trim();
         let currentEndStr = document.getElementById('endDate').value.trim();
-        let dateChangedInThisLoop = false;
+        let dateAdjusted = false;
         rawDataSets = [];
 
         try {
             for (let i = 0; i < targets.length; i++) {
-                statusEl.innerText = `FETCHING ${i + 1}/${targets.length}...`;
+                statusEl.innerText = `SYNCING ${i + 1}/${targets.length}...`;
                 
                 const nasaUrl = `https://ssd.jpl.nasa.gov/api/horizons.api?format=json&COMMAND='${encodeURIComponent(targets[i])}'&OBJ_DATA='NO'&MAKE_EPHEM='YES'&EPHEM_TYPE='VECTORS'&CENTER='@${centerInput}'&START_TIME='${currentStartStr}'&STOP_TIME='${currentEndStr}'&STEP_SIZE='${step}'&CSV_FORMAT='YES'&VEC_TABLE='1'&REF_PLANE='${cleanRefPlane}'`;
                 
-                let data;
+                let response;
                 try {
-                    // PRIMARY PROXY (Fastest)
-                    const res = await fetch("https://corsproxy.io/?" + encodeURIComponent(nasaUrl), { signal });
-                    if (!res.ok) throw new Error("Proxy Throttled");
-                    data = await res.json();
+                    // Try Primary Proxy
+                    response = await fetch("https://corsproxy.io/?" + encodeURIComponent(nasaUrl));
+                    if (!response.ok) throw new Error();
                 } catch (e) {
-                    if (e.name === 'AbortError') return;
-                    
-                    // BACKUP PROXY (More robust for mobile carriers)
-                    statusEl.innerText = "BACKUP LINK ACTIVE...";
-                    const res = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(nasaUrl)}`, { signal });
-                    const jsonWrap = await res.json();
-                    data = JSON.parse(jsonWrap.contents);
+                    // Fallback to Secondary Proxy if mobile carrier blocks the first one
+                    statusEl.innerText = "SWITCHING PROXY...";
+                    response = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(nasaUrl)}`);
+                    const wrapper = await response.json();
+                    // AllOrigins wraps the result in a .contents property
+                    var data = JSON.parse(wrapper.contents);
                 }
 
-                // --- DATE ADJUSTMENT LOGIC ---
+                // If we didn't use the fallback, parse the direct JSON
+                if (!data) data = await response.json();
+
+                // --- DATE LOGIC ---
                 const priorMatch = data.result.match(/prior\s+(?:to\s+)?A\.D\.\s+([\d\- \w:]+\.\d+)/i);
                 const afterMatch = data.result.match(/after\s+A\.D\.\s+([\d\- \w:]+\.\d+)/i);
 
                 if (priorMatch || afterMatch) {
-                    let userStart = new Date(currentStartStr);
-                    let userEnd = new Date(currentEndStr);
+                    let uStart = new Date(currentStartStr);
+                    let uEnd = new Date(currentEndStr);
 
                     if (priorMatch) {
-                        let limitStart = new Date(priorMatch[1]);
-                        limitStart.setSeconds(limitStart.getSeconds() + 1);
-                        if (userEnd <= limitStart) {
-                            let newEnd = new Date(limitStart);
-                            newEnd.setDate(newEnd.getDate() + 1);
-                            document.getElementById('endDate').value = newEnd.toISOString().split('T')[0] + " 00:00:00";
+                        let lStart = new Date(priorMatch[1]);
+                        lStart.setSeconds(lStart.getSeconds() + 1);
+                        if (uEnd <= lStart) {
+                            let nEnd = new Date(lStart);
+                            nEnd.setDate(nEnd.getDate() + 1);
+                            document.getElementById('endDate').value = nEnd.toISOString().split('T')[0] + " 00:00:00";
                         }
-                        document.getElementById('startDate').value = limitStart.toISOString().split('T')[0] + " " + limitStart.toTimeString().split(' ')[0];
-                    } else if (afterMatch) {
-                        let limitEnd = new Date(afterMatch[1]);
-                        limitEnd.setSeconds(limitEnd.getSeconds() - 1);
-                        if (userStart >= limitEnd) {
-                            let newStart = new Date(limitEnd);
-                            newStart.setDate(newStart.getDate() - 1);
-                            document.getElementById('startDate').value = newStart.toISOString().split('T')[0] + " 00:00:01";
+                        document.getElementById('startDate').value = lStart.toISOString().split('T')[0] + " " + lStart.toTimeString().split(' ')[0];
+                    } else {
+                        let lEnd = new Date(afterMatch[1]);
+                        lEnd.setSeconds(lEnd.getSeconds() - 1);
+                        if (uStart >= lEnd) {
+                            let nStart = new Date(lEnd);
+                            nStart.setDate(nStart.getDate() - 1);
+                            document.getElementById('startDate').value = nStart.toISOString().split('T')[0] + " 00:00:01";
                         }
-                        document.getElementById('endDate').value = limitEnd.toISOString().split('T')[0] + " " + limitEnd.toTimeString().split(' ')[0];
+                        document.getElementById('endDate').value = lEnd.toISOString().split('T')[0] + " " + lEnd.toTimeString().split(' ')[0];
                     }
 
-                    dateChangedInThisLoop = true;
-                    statusEl.innerText = "CALIBRATING DATES...";
-                    // CRITICAL: Give mobile networks/proxies 400ms to recover before re-fetching
-                    await new Promise(resolve => setTimeout(resolve, 400));
+                    dateAdjusted = true;
+                    statusEl.innerText = "ADJUSTING WINDOW...";
+                    // Wait 500ms so the proxy doesn't see us as a rapid-fire bot
+                    await new Promise(r => setTimeout(r, 500));
                     break; 
                 }
 
@@ -336,10 +340,11 @@ async function fetchAndPlot() {
                     showSelection(data.result, i, `Resolve "${targets[i]}"`, (id, idx) => {
                         targets[idx] = id; renderTags(); fetchAndPlot();
                     });
+                    isFetching = false;
                     return;
                 }
 
-                // Parse Data
+                // Parse standard data
                 const x = [], y = [], z = [], d = [];
                 let inData = false;
                 data.result.split('\n').forEach(line => {
@@ -356,18 +361,18 @@ async function fetchAndPlot() {
                 rawDataSets.push({ name: parseBodyName(data.result, "Target body name") || targets[i], x, y, z, d });
             }
 
-            if (!dateChangedInThisLoop) break; 
+            if (!dateAdjusted) break; // All good, exit the while loop
             attempts++;
 
         } catch (err) { 
-            if (err.name === 'AbortError') return;
-            statusEl.innerText = "LINK ERROR"; 
+            statusEl.innerText = "CONNECTION TIMEOUT"; 
             console.error(err);
+            isFetching = false;
             return;
         }
     }
 
-    // Final Rendering (Logic unchanged)
+    // FINAL RENDER
     let processedTraces = [];
     if (isRelative && rawDataSets.length > 0) {
         const ref = rawDataSets[0];
@@ -384,6 +389,7 @@ async function fetchAndPlot() {
     }
     renderPlot(processedTraces, centerInput, isRelative);
     statusEl.innerText = `ACTIVE BODIES: ${targets.length}`;
+    isFetching = false;
 }
 
         function createTrace(x, y, z, d, name, color) {
