@@ -90,18 +90,19 @@
 
     <div class="app-container">
         <div class="sidebar">
-            <div class="sidebar-header"><h2>NASA JPL Horizons Plotter</h2></div>
+            <div class="sidebar-header"><h2>Horizons 3D</h2></div>
             
+
                 <div style="margin-top: 10px;margin-bottom: 10px;margin-right: 10px; padding: 10px; border: 1px solid var(--border); border-radius: 6px; background: rgba(255,255,255,0.03);">
                     <p style="font-size: 0.65rem; color: var(--text-dim); margin: 0;">
-                        <strong>Note:</strong> Colored dots on the plot represent the final position of each body at the "End Date".
+                        <strong>Note:</strong> Colored dots represent the body's position at the "End Date".
                     </p>
                 </div>
 
             <div class="scroll-area">
                 <div class="input-group">
                     <label>Target Objects</label>
-                    <span>Track multiple bodies simultaneously.</span>
+                    <span>Track multiple bodies (e.g. '67P/', 'Mars').</span>
                     <div class="tag-input-container">
                         <input type="text" id="tagInput" placeholder="Add target...">
                         <button class="add-tag-btn" onclick="addTag()">+</button>
@@ -111,7 +112,7 @@
 
                 <div class="input-group">
                     <label for="centId">Coordinate Center</label>
-                    <span>Origin of the coordinate system.</span>
+                    <span>Origin of coordinates (e.g. 'Sun', 'Earth', 399).</span>
                     <input type="text" id="centId" value="Sun">
                 </div>
 
@@ -167,14 +168,14 @@
     <div id="selectionOverlay">
         <div class="selection-box">
             <h3 id="selectionTitle" style="color: var(--accent); margin-top:0;">Resolve Ambiguity</h3>
-            <p id="selectionText" style="color: var(--text-dim); font-size: 0.85rem; margin-bottom: 20px;"></p>
+            <p id="selectionText" style="color: var(--text-dim); font-size: 0.85rem; margin-bottom: 20px;">Multiple objects found. Please select the correct target:</p>
             <div id="objectList"></div>
             <button onclick="document.getElementById('selectionOverlay').style.display='none'" class="object-item" style="background: #30363d; text-align: center;">Cancel</button>
         </div>
     </div>
 
     <script>
-        let targets = ["Solar Orbiter"];
+        let targets = ["Solar Orbiter", "67P/"];
         const palette = ['#00d2ff', '#ff00ff', '#00ffaa', '#ffaa00', '#7000ff', '#ffffff', '#ff4d4d'];
 
         function renderTags() {
@@ -196,7 +197,6 @@
         document.getElementById('tagInput').onkeydown = (e) => { if(e.key === 'Enter') addTag(); };
         function removeTag(i) { targets.splice(i, 1); renderTags(); }
 
-        // Helper to extract official names from Horizons text output
         function parseBodyName(text, field) {
             const regex = new RegExp(`${field}\\s*:\\s*([^\\(\\n\\r]+)`, 'i');
             const match = text.match(regex);
@@ -218,11 +218,13 @@
             let officialCenterName = centerInput;
 
             try {
-                // Check Center Body
+                // Check Center Body first
                 const cCheckUrl = `https://ssd.jpl.nasa.gov/api/horizons.api?format=json&COMMAND='${encodeURIComponent(centerInput)}'`;
                 const cRes = await fetch("https://corsproxy.io/?" + encodeURIComponent(cCheckUrl));
                 const cData = await cRes.json();
-                if (cData.result && cData.result.includes("Number of matches")) {
+                
+                // If center is ambiguous
+                if (cData.result && (cData.result.includes("Number of matches") || cData.result.includes("Matching Objects"))) {
                     showSelection(cData.result, null, "Select Center Body", (id) => {
                         document.getElementById('centId').value = id;
                         fetchAndPlot();
@@ -236,9 +238,12 @@
                     const res = await fetch("https://corsproxy.io/?" + encodeURIComponent(nasaUrl));
                     const data = await res.json();
 
-                    if (data.result.includes("Number of matches")) {
+                    // If target is ambiguous (Common for comets like 67P)
+                    if (data.result.includes("Number of matches") || data.result.includes("Matching Objects")) {
                         showSelection(data.result, i, `Resolve "${targets[i]}"`, (id, idx) => {
-                            targets[idx] = id; renderTags(); fetchAndPlot();
+                            targets[idx] = id; 
+                            renderTags(); 
+                            fetchAndPlot();
                         });
                         return;
                     }
@@ -257,31 +262,32 @@
                         }
                     });
 
+                    if (x.length === 0) {
+                        console.warn(`No vector data found for ${targets[i]}`);
+                        continue;
+                    }
+
                     const color = palette[i % palette.length];
 
-                    // Main Trajectory Line
                     traces.push({
                         x: x, y: y, z: z, text: d, mode: 'lines', type: 'scatter3d',
                         name: officialTargetName,
                         line: { width: 4, color: color }
                     });
 
-                    // Endpoint Marker (Current Position)
-                    if (x.length > 0) {
-                        traces.push({
-                            x: [x[x.length - 1]], 
-                            y: [y[y.length - 1]], 
-                            z: [z[z.length - 1]],
-                            mode: 'markers', type: 'scatter3d',
-                            marker: { size: 6, color: color, symbol: 'circle', opacity: 1 },
-                            hoverinfo: 'skip',
-                            showlegend: false // Hide from legend
-                        });
-                    }
+                    // Target Dot
+                    traces.push({
+                        x: [x[x.length - 1]], y: [y[y.length - 1]], z: [z[z.length - 1]],
+                        mode: 'markers', type: 'scatter3d',
+                        marker: { size: 8, color: color, symbol: 'circle' },
+                        hoverinfo: 'skip', showlegend: false
+                    });
                 }
 
+                if (traces.length === 0) throw new Error("NASA returned no trajectory data for those parameters.");
+
                 renderPlot(traces, officialCenterName);
-                statusEl.innerText = `ACTIVE BODIES: ${targets.length}`;
+                statusEl.innerText = `ACTIVE TRACKING\nCENTER: ${officialCenterName.split('(')[0].trim()}`;
             } catch (err) { statusEl.innerText = "ERROR"; alert(err.message); }
         }
 
@@ -289,13 +295,18 @@
             const list = document.getElementById('objectList');
             document.getElementById('selectionTitle').innerText = title;
             list.innerHTML = "";
+            
+            // Smarter parsing for the JPL list format
             result.split('\n').forEach(line => {
-                const m = line.match(/^\s*(-?\d+)\s+(.+)$/);
-                if (m) {
+                const m = line.match(/^\s*(-?\d+|[A-Za-z0-9\/=-]+)\s+(.+)$/);
+                if (m && !line.includes("Record #") && !line.includes("---")) {
                     const btn = document.createElement('button');
                     btn.className = "object-item";
-                    btn.innerText = `ID: ${m[1]} — ${m[2].trim()}`;
-                    btn.onclick = () => { document.getElementById('selectionOverlay').style.display = 'none'; callback(m[1], targetIdx); };
+                    btn.innerText = `${m[2].trim()} (${m[1]})`;
+                    btn.onclick = () => { 
+                        document.getElementById('selectionOverlay').style.display = 'none'; 
+                        callback(m[1], targetIdx); 
+                    };
                     list.appendChild(btn);
                 }
             });
@@ -304,11 +315,7 @@
 
         function renderPlot(traces, centerName) {
             const allX = [], allY = [], allZ = [];
-            traces.forEach(t => { 
-                if(t.mode === 'lines') { // Only calculate range from lines to avoid marker influence
-                    allX.push(...t.x); allY.push(...t.y); allZ.push(...t.z); 
-                }
-            });
+            traces.forEach(t => { if(t.mode === 'lines') { allX.push(...t.x); allY.push(...t.y); allZ.push(...t.z); }});
             allX.push(0); allY.push(0); allZ.push(0);
 
             const minX = Math.min(...allX), maxX = Math.max(...allX);
@@ -324,7 +331,7 @@
                 z: [midZ - halfSpan, midZ + halfSpan]
             };
 
-            const centerTrace = { x:[0], y:[0], z:[0], mode:'markers', type:'scatter3d', name:centerName, marker:{size:8, color:'#fff'} };
+            const centerTrace = { x:[0], y:[0], z:[0], mode:'markers', type:'scatter3d', name:centerName, marker:{size:10, color:'#fff', symbol:'diamond'} };
 
             Plotly.newPlot('plot', [centerTrace, ...traces], {
                 paper_bgcolor: 'rgba(0,0,0,0)', margin: {l:0, r:0, b:0, t:0},
