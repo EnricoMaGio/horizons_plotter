@@ -26,7 +26,7 @@
             box-shadow: 4px 0 10px rgba(0,0,0,0.3); z-index: 10;
         }
 
-        h2 { font-size: 1.1rem; margin: 0 0 5px 0; color: var(--accent-color); letter-spacing: 1px; text-transform: uppercase; border-bottom: 1px solid var(--border-color); padding-bottom: 15px; }
+        h2 { font-size: 1.1rem; margin: 0; color: var(--accent-color); letter-spacing: 1px; text-transform: uppercase; border-bottom: 1px solid var(--border-color); padding-bottom: 15px; }
 
         .input-group { display: flex; flex-direction: column; gap: 5px; }
         .input-group label { font-size: 0.85rem; font-weight: 600; }
@@ -58,13 +58,13 @@
         
         <div class="input-group">
             <label for="objId">Target Object</label>
-            <span>Name or ID (e.g., 'Mars' or '-144').</span>
-            <input type="text" id="objId" value="-144">
+            <span>Target name or ID (e.g., 'Solar Orbiter').</span>
+            <input type="text" id="objId" value="Solar Orbiter">
         </div>
 
         <div class="input-group">
             <label for="centId">Coordinate Center</label>
-            <span>Origin (e.g., 'Sun' or 'Earth').</span>
+            <span>Origin point (e.g., 'Sun' or 'Earth').</span>
             <input type="text" id="centId" value="Sun">
         </div>
 
@@ -79,12 +79,12 @@
 
         <div class="input-group">
             <label for="startDate">Start Date/Time</label>
-            <input type="text" id="startDate" value="2020-02-12 00:00:00.0000">
+            <input type="text" id="startDate" value="2020-02-10 00:00:00">
         </div>
 
         <div class="input-group">
             <label for="endDate">End Date/Time</label>
-            <input type="text" id="endDate" value="2021-02-10 00:00:00.0000">
+            <input type="text" id="endDate" value="2021-02-10 00:00:00">
         </div>
 
         <div class="input-group">
@@ -124,17 +124,18 @@
             const statusEl = document.getElementById('status');
             statusEl.innerText = "Fetching Data...";
             
-            const targetId = document.getElementById('objId').value;
-            const centerId = document.getElementById('centId').value;
+            const targetInput = document.getElementById('objId').value;
+            const centerInput = document.getElementById('centId').value;
             const start = document.getElementById('startDate').value;
             const end = document.getElementById('endDate').value;
             const step = `${document.getElementById('stepVal').value} ${document.getElementById('stepUnit').value}`;
-            const refPlaneRaw = document.getElementById('refPlane').value;
+            const refPlane = document.getElementById('refPlane').value;
 
-            // 1. Check Center Ambiguity
+            // 1. Separate Ambiguity Check for Center
             try {
-                const cCheck = await fetch("https://corsproxy.io/?" + encodeURIComponent(`https://ssd.jpl.nasa.gov/api/horizons.api?format=json&COMMAND='${centerId}'`));
-                const cData = await cCheck.json();
+                const cCheckUrl = `https://ssd.jpl.nasa.gov/api/horizons.api?format=json&COMMAND='${encodeURIComponent(centerInput)}'`;
+                const cRes = await fetch("https://corsproxy.io/?" + encodeURIComponent(cCheckUrl));
+                const cData = await cRes.json();
                 if (cData.result && cData.result.includes("Number of matches")) {
                     showSelection(cData.result, "centId", "Select Center Body");
                     statusEl.innerText = "Select Center Body...";
@@ -142,41 +143,39 @@
                 }
             } catch(e) {}
 
-            // 2. Build URL manually to ensure strict NASA-compliant quoting and space-handling
-            const cleanRefPlane = refPlaneRaw.replace(" ", "+");
-            const baseUrl = "https://ssd.jpl.nasa.gov/api/horizons.api?format=json";
-            const query = [
-                `COMMAND='${targetId}'`,
-                `CENTER='@${centerId}'`,
-                `MAKE_EPHEM='YES'`,
-                `EPHEM_TYPE='VECTORS'`,
-                `REF_PLANE='${cleanRefPlane}'`, // Fixed space handling
-                `START_TIME='${start}'`,
-                `STOP_TIME='${end}'`,
-                `STEP_SIZE='${step}'`,
-                `OBJ_DATA='NO'`,
-                `CSV_FORMAT='YES'`,
-                `VEC_TABLE='1'`
-            ].join('&');
+            // 2. Build the main Data URL
+            // Note: We wrap values in single quotes as required by Horizons, then encode the whole string
+            const nasaUrl = `https://ssd.jpl.nasa.gov/api/horizons.api?` + 
+                `format=json` +
+                `&COMMAND='${targetInput}'` +
+                `&OBJ_DATA='NO'` +
+                `&MAKE_EPHEM='YES'` +
+                `&EPHEM_TYPE='VECTORS'` +
+                `&CENTER='@${centerInput}'` +
+                `&START_TIME='${start}'` +
+                `&STOP_TIME='${end}'` +
+                `&STEP_SIZE='${step}'` +
+                `&CSV_FORMAT='YES'` +
+                `&VEC_TABLE='1'` +
+                `&REF_PLANE='${refPlane}'`;
 
-            const nasaUrl = `${baseUrl}&${query}`;
-            
             try {
                 const response = await fetch("https://corsproxy.io/?" + encodeURIComponent(nasaUrl));
                 const data = await response.json();
 
+                // 3. Separate Ambiguity Check for Target
                 if (data.result && data.result.includes("Number of matches")) {
                     showSelection(data.result, "objId", "Select Target Object");
                     statusEl.innerText = "Select Target...";
                     return;
                 }
 
-                if (data.result && (data.result.includes("INPUT ERROR") || data.result.includes("Too many constants"))) {
-                    throw new Error("JPL API Error: Check if BODY EQUATOR is supported for this center.");
+                if (data.result && data.result.includes("INPUT ERROR")) {
+                    throw new Error("JPL Input Error: Check if BODY EQUATOR is valid for this center/target combo.");
                 }
 
-                // Restore dynamic name extraction
-                let targetName = targetId, centerName = centerId;
+                // 4. Extract Names for Legend
+                let targetName = targetInput, centerName = centerInput;
                 const tNameMatch = data.result.match(/Target body name:\s+([^({\n]+)/);
                 if (tNameMatch) targetName = tNameMatch[1].trim();
                 const cNameMatch = data.result.match(/Center body name:\s+([^({\n]+)/);
@@ -203,6 +202,7 @@
 
                 plotData(x, y, z, dates, targetName, centerName);
                 statusEl.innerText = `Viewing: ${targetName}`;
+
             } catch (err) {
                 statusEl.innerText = "Error";
                 alert(err.message);
@@ -212,7 +212,7 @@
         function showSelection(resultText, targetFieldId, title) {
             const listDiv = document.getElementById('objectList');
             document.getElementById('selectionTitle').innerText = title;
-            document.getElementById('selectionText').innerText = `Select specific body:`;
+            document.getElementById('selectionText').innerText = `Matches found for "${document.getElementById(targetFieldId).value}":`;
             listDiv.innerHTML = "";
             const lines = resultText.split('\n');
             lines.forEach(line => {
@@ -233,6 +233,7 @@
         }
 
         function plotData(x, y, z, dates, tName, cName) {
+            // Manual isometric scaling (equal axes)
             const combined = [...x, ...y, ...z];
             const maxVal = Math.max(...combined), minVal = Math.min(...combined);
             const midX = (Math.max(...x) + Math.min(...x)) / 2;
