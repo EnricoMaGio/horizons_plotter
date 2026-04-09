@@ -37,7 +37,7 @@ async function fetchAndPlot() {
 
     // 1. Dynamically build the URL based on user input
     // Added 'CSV=YES' to make parsing easier
-    const nasaUrl = `https://ssd.jpl.nasa.gov/api/horizons.api?format=json&COMMAND='${id}'&OBJ_DATA='NO'&MAKE_EPHEM='YES'&EPHEM_TYPE='VECTORS'&CENTER='500@${centerId}'&START_TIME='${start}'&STOP_TIME='${end}'&STEP_SIZE='${step}'&CSV_FORMAT='YES'&VEC_TABLE='1'`;
+    const nasaUrl = `https://ssd.jpl.nasa.gov/api/horizons.api?format=json&COMMAND='${id}'&OBJ_DATA='NO'&MAKE_EPHEM='YES'&EPHEM_TYPE='VECTORS'&CENTER='500@${centerId}'&START_TIME='${start} UTC'&STOP_TIME='${end}'&STEP_SIZE='${step}'&CSV_FORMAT='YES'&VEC_TABLE='1'`;
 
     const proxyUrl = "https://corsproxy.io/?" + encodeURIComponent(nasaUrl);
 
@@ -49,7 +49,7 @@ async function fetchAndPlot() {
 
 // CHECK FOR AMBIGUOUS RESULTS
         // If NASA doesn't find a direct match, it returns a list of suggestions in the 'result' field
-        if (data.result && data.result.includes("Multiple objects found")) {
+        if (data.result && data.result.includes("Number of matches")) {
             alert("Multiple objects found. Please be more specific (e.g., 'Solar Orbiter' or '-144').");
             console.log("Suggestions:", data.result);
             return;
