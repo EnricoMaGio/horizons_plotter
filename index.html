@@ -247,11 +247,10 @@ button.primary-btn { width: 100%; background: linear-gradient(135deg, #00d2ff 0%
             return match ? match[1].trim() : null;
         }
 
-
-let currentAbortController = null; // Prevents overlapping requests
+let currentAbortController = null; // Essential for mobile stability
 
 async function fetchAndPlot() {
-    // 1. Cancel any existing request to avoid mobile network collisions
+    // 1. Cancel any "hanging" previous requests to avoid mobile network collisions
     if (currentAbortController) { currentAbortController.abort(); }
     currentAbortController = new AbortController();
     const signal = currentAbortController.signal;
@@ -264,11 +263,11 @@ async function fetchAndPlot() {
 
     if (targets.length === 0) { alert("Add at least one target."); return; }
 
-    statusEl.classList.add('processing');
     let rawDataSets = [];
     let attempts = 0;
-    const maxAttempts = 4; 
+    const maxAttempts = 5; 
 
+    // Use a loop to handle date corrections without "Recursive Call" overhead
     while (attempts < maxAttempts) {
         let currentStartStr = document.getElementById('startDate').value.trim();
         let currentEndStr = document.getElementById('endDate').value.trim();
@@ -283,14 +282,15 @@ async function fetchAndPlot() {
                 
                 let data;
                 try {
-                    // PRIMARY PROXY
+                    // PRIMARY PROXY (Fastest)
                     const res = await fetch("https://corsproxy.io/?" + encodeURIComponent(nasaUrl), { signal });
+                    if (!res.ok) throw new Error("Proxy Throttled");
                     data = await res.json();
                 } catch (e) {
-                    if (e.name === 'AbortError') return; // User started a new fetch
+                    if (e.name === 'AbortError') return;
                     
-                    // BACKUP PROXY (allorigins) - Often bypasses mobile carrier blocks
-                    statusEl.innerText = "RETRIEVING VIA BACKUP...";
+                    // BACKUP PROXY (More robust for mobile carriers)
+                    statusEl.innerText = "BACKUP LINK ACTIVE...";
                     const res = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(nasaUrl)}`, { signal });
                     const jsonWrap = await res.json();
                     data = JSON.parse(jsonWrap.contents);
@@ -325,12 +325,13 @@ async function fetchAndPlot() {
                     }
 
                     dateChangedInThisLoop = true;
-                    statusEl.innerText = "SYNCING DATES...";
-                    // CRITICAL: Wait for mobile UI to update and proxy to cool down
-                    await new Promise(resolve => setTimeout(resolve, 300));
+                    statusEl.innerText = "CALIBRATING DATES...";
+                    // CRITICAL: Give mobile networks/proxies 400ms to recover before re-fetching
+                    await new Promise(resolve => setTimeout(resolve, 400));
                     break; 
                 }
 
+                // Handle Ambiguity
                 if (data.result.includes("matches")) {
                     showSelection(data.result, i, `Resolve "${targets[i]}"`, (id, idx) => {
                         targets[idx] = id; renderTags(); fetchAndPlot();
@@ -338,7 +339,7 @@ async function fetchAndPlot() {
                     return;
                 }
 
-                // Parsing code remains same
+                // Parse Data
                 const x = [], y = [], z = [], d = [];
                 let inData = false;
                 data.result.split('\n').forEach(line => {
@@ -360,14 +361,13 @@ async function fetchAndPlot() {
 
         } catch (err) { 
             if (err.name === 'AbortError') return;
-            statusEl.innerText = "NETWORK ERROR"; 
-            statusEl.classList.remove('processing');
+            statusEl.innerText = "LINK ERROR"; 
             console.error(err);
             return;
         }
     }
 
-    // Process and Plot
+    // Final Rendering (Logic unchanged)
     let processedTraces = [];
     if (isRelative && rawDataSets.length > 0) {
         const ref = rawDataSets[0];
@@ -384,7 +384,6 @@ async function fetchAndPlot() {
     }
     renderPlot(processedTraces, centerInput, isRelative);
     statusEl.innerText = `ACTIVE BODIES: ${targets.length}`;
-    statusEl.classList.remove('processing');
 }
 
         function createTrace(x, y, z, d, name, color) {
