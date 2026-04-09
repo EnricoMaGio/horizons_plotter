@@ -18,7 +18,7 @@
     
     <div class="controls">
         <input type="text" id="objId" value="-144" placeholder="Target ID (e.g. -144)">
-        <input type="text" id="centerId" value="sun" placeholder="Center ID (e.g. sun)">
+        <input type="text" id="centId" value="sun" placeholder="Center ID (e.g. sun)">
         <input type="date" id="startDate" value="2020-02-12">
         <input type="date" id="endDate" value="2021-02-10">
         <input type="text" id="stepsize" value="1 MINUTES" placeholder="Stepsize">
@@ -30,7 +30,7 @@
     <script>
 async function fetchAndPlot() {
     const id = document.getElementById('objId').value;
-    const centerId = document.getElementById('centerId').value;
+    const centerId = document.getElementById('centId').value;
     const start = document.getElementById('startDate').value;
     const end = document.getElementById('endDate').value;
         const step = document.getElementById('stepsize').value;
@@ -51,6 +51,15 @@ async function fetchAndPlot() {
         const x = [], y = [], z = [], dates = [];
 
         // 2. Improved Parsing for CSV Output
+
+
+// --- 1. Extract the Object Name ---
+        let displayName = `Object ${id}`; // Fallback
+        const nameMatch = data.result.match(/Target body name:\s+([^({\n]+)/);
+        if (nameMatch && nameMatch[1]) {
+            displayName = nameMatch[1].trim();
+        }
+
         const lines = data.result.split('\n');
         let inData = false;
 
@@ -87,7 +96,7 @@ async function fetchAndPlot() {
                 type: 'scatter3d',
                 text: dates,
                 line: { width: 4, color: '#00f2ff' },
-                name: `Object ${id}`
+                name: $displayName
             };
 
             const center = {
