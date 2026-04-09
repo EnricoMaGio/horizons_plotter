@@ -59,13 +59,13 @@
         
         <div class="input-group">
             <label for="objId">Target Object</label>
-            <span>Target name or ID (e.g., 'Mars' or '-144').</span>
+            <span>Name or ID (e.g., 'Mars' or '-144').</span>
             <input type="text" id="objId" value="-144">
         </div>
 
         <div class="input-group">
             <label for="centId">Coordinate Center</label>
-            <span>Origin point (e.g., 'Sun' or 'Earth').</span>
+            <span>Origin (e.g., 'Sun' or 'Earth').</span>
             <input type="text" id="centId" value="Sun">
         </div>
 
@@ -132,7 +132,7 @@
             const step = `${document.getElementById('stepVal').value} ${document.getElementById('stepUnit').value}`;
             const refPlane = document.getElementById('refPlane').value;
 
-            // 1. Check Center Ambiguity
+            // 1. Check Center Ambiguity separately
             const centerCheckUrl = `https://ssd.jpl.nasa.gov/api/horizons.api?format=json&COMMAND='${centerId}'`;
             try {
                 const cRes = await fetch("https://corsproxy.io/?" + encodeURIComponent(centerCheckUrl));
@@ -144,8 +144,23 @@
                 }
             } catch(e) {}
 
-            // 2. Fetch Vectors with quoted REF_PLANE to fix "Too many constants" error
-            const nasaUrl = `https://ssd.jpl.nasa.gov/api/horizons.api?format=json&COMMAND='${targetId}'&OBJ_DATA='NO'&MAKE_EPHEM='YES'&EPHEM_TYPE='VECTORS'&CENTER='@${centerId}'&REF_PLANE='${refPlane}'&START_TIME='${start}'&STOP_TIME='${end}'&STEP_SIZE='${step}'&CSV_FORMAT='YES'&VEC_TABLE='1'`;
+            // 2. Build URL with CRITICAL QUOTES for REF_PLANE to fix 'BODY EQUATOR' error
+            const params = new URLSearchParams({
+                format: 'json',
+                COMMAND: `'${targetId}'`,
+                OBJ_DATA: 'NO',
+                MAKE_EPHEM: 'YES',
+                EPHEM_TYPE: 'VECTORS',
+                CENTER: `'@${centerId}'`,
+                REF_PLANE: `'${refPlane}'`, // Fixed: Quoted value
+                START_TIME: `'${start}'`,
+                STOP_TIME: `'${end}'`,
+                STEP_SIZE: `'${step}'`,
+                CSV_FORMAT: 'YES',
+                VEC_TABLE: '1'
+            });
+
+            const nasaUrl = `https://ssd.jpl.nasa.gov/api/horizons.api?${params.toString()}`;
             
             try {
                 const response = await fetch("https://corsproxy.io/?" + encodeURIComponent(nasaUrl));
@@ -158,16 +173,15 @@
                     return;
                 }
 
-                if (data.error || (data.result && data.result.includes("INPUT ERROR"))) {
-                    throw new Error(data.error || "NASA Horizons Input Error");
+                if (data.result && data.result.includes("INPUT ERROR")) {
+                    console.error("NASA Response:", data.result);
+                    throw new Error("Horizons API error. Check if 'BODY EQUATOR' is valid for this specific center.");
                 }
 
                 let targetName = targetId;
                 let centerName = centerId;
-                
                 const tNameMatch = data.result.match(/Target body name:\s+([^({\n]+)/);
                 if (tNameMatch) targetName = tNameMatch[1].trim();
-
                 const cNameMatch = data.result.match(/Center body name:\s+([^({\n]+)/);
                 if (cNameMatch) centerName = cNameMatch[1].trim();
 
@@ -188,7 +202,7 @@
                     }
                 }
 
-                if (x.length === 0) throw new Error("No data found. Check parameters.");
+                if (x.length === 0) throw new Error("No coordinate data found.");
 
                 plotData(x, y, z, dates, targetName, centerName);
                 statusEl.innerText = `Viewing: ${targetName}`;
@@ -201,9 +215,8 @@
         function showSelection(resultText, targetFieldId, title) {
             const listDiv = document.getElementById('objectList');
             document.getElementById('selectionTitle').innerText = title;
-            document.getElementById('selectionText').innerText = `Matches found for your input. Please choose one:`;
+            document.getElementById('selectionText').innerText = `Select the specific body for "${document.getElementById(targetFieldId).value}":`;
             listDiv.innerHTML = "";
-            
             const lines = resultText.split('\n');
             lines.forEach(line => {
                 const match = line.match(/^\s*(-?\d+)\s+(.+)$/);
