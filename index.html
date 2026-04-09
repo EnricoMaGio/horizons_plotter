@@ -21,6 +21,7 @@
         <input type="text" id="centerId" value="sun" placeholder="Center ID (e.g. sun)">
         <input type="date" id="startDate" value="2020-02-12">
         <input type="date" id="endDate" value="2021-02-10">
+        <input type="text" id="stepsize" value="1 MINUTES" placeholder="Stepsize">
         <button onclick="fetchAndPlot()">Plot Trajectory</button>
     </div>
 
@@ -32,10 +33,11 @@ async function fetchAndPlot() {
     const centerId = document.getElementById('centerId').value;
     const start = document.getElementById('startDate').value;
     const end = document.getElementById('endDate').value;
-    
+        const step = document.getElementById('stepsize').value;
+
     // 1. Dynamically build the URL based on user input
     // Added 'CSV=YES' to make parsing easier
-    const nasaUrl = `https://ssd.jpl.nasa.gov/api/horizons.api?format=json&COMMAND='${id}'&OBJ_DATA='NO'&MAKE_EPHEM='YES'&EPHEM_TYPE='VECTORS'&CENTER='500@${centerId}'&START_TIME='${start}'&STOP_TIME='${end}'&STEP_SIZE='1d'&CSV_FORMAT='YES'&VEC_TABLE='1'`;
+    const nasaUrl = `https://ssd.jpl.nasa.gov/api/horizons.api?format=json&COMMAND='${id}'&OBJ_DATA='NO'&MAKE_EPHEM='YES'&EPHEM_TYPE='VECTORS'&CENTER='500@${centerId}'&START_TIME='${start}'&STOP_TIME='${end}'&STEP_SIZE='${step}'&CSV_FORMAT='YES'&VEC_TABLE='1'`;
 
     const proxyUrl = "https://corsproxy.io/?" + encodeURIComponent(nasaUrl);
 
