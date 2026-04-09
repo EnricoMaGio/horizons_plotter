@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>JPL Horizons 3D Plotter</title>
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+    <style>
+        body { font-family: sans-serif; margin: 20px; background: #1a1a1a; color: white; }
+        .controls { display: flex; gap: 10px; margin-bottom: 20px; flex-wrap: wrap; background: #333; padding: 15px; border-radius: 8px; }
+        input, button { padding: 8px; border-radius: 4px; border: none; }
+        button { background: #007bff; color: white; cursor: pointer; font-weight: bold; }
+        button:hover { background: #0056b3; }
+        #plot { width: 100%; height: 80vh; background: #000; }
+    </style>
+</head>
+<body>
+
+    <h2>JPL Horizons 3D Orbit Plotter</h2>
+    
+    <div class="controls">
+        <input type="text" id="objId" value="-144" placeholder="Object ID (e.g. -144)">
+        <input type="date" id="startDate" value="2020-02-10">
+        <input type="date" id="endDate" value="2021-02-10">
+        <button onclick="fetchAndPlot()">Plot Trajectory</button>
+    </div>
+
+    <div id="plot"></div>
+
+    <script>
+       async function fetchAndPlot() {
+    const id = document.getElementById('objId').value;
+    const start = document.getElementById('startDate').value;
+    const end = document.getElementById('endDate').value;
+    
+    // AllOrigins is generally more stable for local files
+    const baseUrl = "https://ssd-api.jpl.nasa.gov/horizons.api";
+    const params = `?format=json&COMMAND='${id}'&OBJ_DATA='NO'&MAKE_EPHEM='YES'&EPHEM_TYPE='VECTORS'&CENTER='@sun'&START_TIME='${start}'&STOP_TIME='${end}'&STEP_SIZE='1d'&OUT_UNITS='AU'`;
+    
+    // This format works better for AllOrigins
+    const finalUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(baseUrl + params)}`;
+
+    try {
+        const response = await fetch(finalUrl);
+        if (!response.ok) throw new Error("Network response was not ok");
+        
+        const wrapper = await response.json();
+        // AllOrigins wraps the result in a 'contents' string
+        const data = JSON.parse(wrapper.contents);
+        
+        if (!data.result) {
+            console.log("NASA Error Message:", data);
+            throw new Error("NASA didn't return data. Check console for details.");
+        }
+
+        const lines = data.result.split('\n');
+        let inData = false;
+        const x = [], y = [], z = [], dates = [];
+
+        lines.forEach(line => {
+            if (line.includes('$$SOE')) { inData = true; return; }
+            if (line.includes('$$EOE')) { inData = false; return; }
+            if (inData) {
+                const cols = line.split(',').map(s => s.trim());
+                if (cols.length >= 5) {
+                    dates.push(cols[1]); 
+                    x.push(parseFloat(cols[2]));
+                    y.push(parseFloat(cols[3]));
+                    z.push(parseFloat(cols[4]));
+                }
+            }
+        });
+
+        plotData(x, y, z, dates, id);
+    } catch (err) {
+        console.error("Detailed Error:", err);
+        alert("Failed to get data. This is usually a browser security block. Try disabling ad-blockers or running through a local server.");
+    }
+}
+        function plotData(x, y, z, dates, id) {
+            const trace = {
+                x: x, y: y, z: z,
+                mode: 'lines',
+                type: 'scatter3d',
+                text: dates,
+                line: { width: 4, color: '#00f2ff' },
+                name: `Object ${id}`
+            };
+
+            // Add the Sun at (0,0,0)
+            const sun = {
+                x: [0], y: [0], z: [0],
+                mode: 'markers',
+                type: 'scatter3d',
+                marker: { size: 10, color: 'yellow' },
+                name: 'Sun'
+            };
+
+            const layout = {
+                paper_bgcolor: '#1a1a1a',
+                plot_bgcolor: '#1a1a1a',
+                margin: { l:0, r:0, b:0, t:0 },
+                scene: {
+                    xaxis: { title: 'X (AU)', gridcolor: '#444' },
+                    yaxis: { title: 'Y (AU)', gridcolor: '#444' },
+                    zaxis: { title: 'Z (AU)', gridcolor: '#444' }
+                },
+                legend: { font: { color: 'white' } }
+            };
+
+            Plotly.newPlot('plot', [trace, sun], layout);
+        }
+
+        // Run once on load
+        fetchAndPlot();
+    </script>
+</body>
+</html>
