@@ -101,6 +101,29 @@ button.primary-btn { width: 100%; background: linear-gradient(135deg, #00d2ff 0%
     #status { top: 10px; right: 10px; }
     .info-banner-container { display: none; } /* Hide notes on mobile to save space */
 }
+
+
+/* Smooth transitions for the layout */
+.sidebar {
+    transition: transform 0.3s ease, margin-left 0.3s ease;
+}
+
+.main-content {
+    transition: width 0.3s ease;
+}
+
+/* The "Hidden" State */
+.sidebar.hidden {
+    margin-left: -320px; /* Matches the sidebar width */
+}
+
+/* Mobile adjustment for hidden state */
+@media (max-width: 768px) {
+    .sidebar.hidden {
+        margin-left: 0;
+        margin-top: -45vh; /* Slides up on mobile */
+    }
+}
     </style>
 </head>
 <body>
@@ -186,6 +209,11 @@ button.primary-btn { width: 100%; background: linear-gradient(135deg, #00d2ff 0%
         </div>
 
         <div class="main-content">
+
+<button id="toggleSidebar" onclick="toggleSidebar()" style="position: absolute; top: 15px; left: 15px; z-index: 101; background: var(--panel-glass); border: 1px solid var(--border); color: var(--accent); padding: 8px; cursor: pointer; border-radius: 4px;">
+    ☰
+</button>
+
             <div id="status">SYSTEM READY</div>
 <div class="info-banner-container">
         <div class="info-note">
@@ -437,6 +465,25 @@ async function fetchAndPlot() {
                 uirevision: 'true'
             }, { responsive: true, displaylogo: false });
         }
+
+function toggleSidebar() {
+    const sidebar = document.querySelector('.sidebar');
+    const toggleBtn = document.getElementById('toggleSidebar');
+    
+    sidebar.classList.toggle('hidden');
+    
+    // Change button icon/text based on state
+    if (sidebar.classList.contains('hidden')) {
+        toggleBtn.innerText = '→'; 
+    } else {
+        toggleBtn.innerText = '☰';
+    }
+
+    // Force Plotly to resize to the new container width
+    setTimeout(() => {
+        Plotly.Plots.resize('plot');
+    }, 310); // Wait for CSS transition to finish
+}
 
         renderTags();
         fetchAndPlot();
