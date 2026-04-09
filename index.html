@@ -187,6 +187,13 @@
         document.getElementById('tagInput').onkeydown = (e) => { if(e.key === 'Enter') addTag(); };
         function removeTag(i) { targets.splice(i, 1); renderTags(); }
 
+        // Helper to extract official names from Horizons text output
+        function parseBodyName(text, field) {
+            const regex = new RegExp(`${field}\\s*:\\s*([^\\(\\n\\r]+)`, 'i');
+            const match = text.match(regex);
+            return match ? match[1].trim() : null;
+        }
+
         async function fetchAndPlot() {
             const statusEl = document.getElementById('status');
             const centerInput = document.getElementById('centId').value;
@@ -199,6 +206,7 @@
 
             statusEl.innerText = "LINKING TO NASA...";
             let traces = [];
+            let officialCenterName = centerInput;
 
             try {
                 // Check Center Body
@@ -226,6 +234,10 @@
                         return;
                     }
 
+                    // Extract official names from the response
+                    const officialTargetName = parseBodyName(data.result, "Target body name") || targets[i];
+                    officialCenterName = parseBodyName(data.result, "Center body name") || centerInput;
+
                     const x = [], y = [], z = [], d = [];
                     let inData = false;
                     data.result.split('\n').forEach(line => {
@@ -239,12 +251,13 @@
 
                     traces.push({
                         x: x, y: y, z: z, text: d, mode: 'lines', type: 'scatter3d',
-                        name: targets[i], line: { width: 4, color: palette[i % palette.length] }
+                        name: officialTargetName, // Using Official Name here
+                        line: { width: 4, color: palette[i % palette.length] }
                     });
                 }
 
-                renderPlot(traces, centerInput);
-                statusEl.innerText = `ACTIVE TRACKING: ${targets.length}`;
+                renderPlot(traces, officialCenterName); // Using Official Center Name here
+                statusEl.innerText = `TRACKING: ${officialCenterName.split('(')[0]}`;
             } catch (err) { statusEl.innerText = "ERROR"; alert(err.message); }
         }
 
@@ -266,24 +279,17 @@
         }
 
         function renderPlot(traces, centerName) {
-            // FORCE AXES EQUALS LOGIC
-            // 1. Get all points from all traces
             const allX = [], allY = [], allZ = [];
             traces.forEach(t => { allX.push(...t.x); allY.push(...t.y); allZ.push(...t.z); });
-            allX.push(0); allY.push(0); allZ.push(0); // Include origin
+            allX.push(0); allY.push(0); allZ.push(0);
 
-            // 2. Find the center and the range of data
             const minX = Math.min(...allX), maxX = Math.max(...allX);
             const minY = Math.min(...allY), maxY = Math.max(...allY);
             const minZ = Math.min(...allZ), maxZ = Math.max(...allZ);
-            
             const midX = (maxX + minX) / 2, midY = (maxY + minY) / 2, midZ = (maxZ + minZ) / 2;
-            
-            // 3. Find the maximum span across any single dimension
             const maxSpan = Math.max(maxX - minX, maxY - minY, maxZ - minZ);
             const halfSpan = maxSpan / 2;
 
-            // 4. Set the same range for every axis
             const axisRange = {
                 x: [midX - halfSpan, midX + halfSpan],
                 y: [midY - halfSpan, midY + halfSpan],
@@ -295,7 +301,7 @@
             Plotly.newPlot('plot', [centerTrace, ...traces], {
                 paper_bgcolor: 'rgba(0,0,0,0)', margin: {l:0, r:0, b:0, t:0},
                 scene: {
-                    aspectmode: 'cube', // Preserves cube shape
+                    aspectmode: 'cube',
                     xaxis: { range: axisRange.x, title: 'X (km)', gridcolor: '#1a1a1a' },
                     yaxis: { range: axisRange.y, title: 'Y (km)', gridcolor: '#1a1a1a' },
                     zaxis: { range: axisRange.z, title: 'Z (km)', gridcolor: '#1a1a1a' }
