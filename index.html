@@ -49,23 +49,36 @@ const nasaUrl = "https://ssd.jpl.nasa.gov/api/horizons.api?format=json&COMMAND='
         if (!data.result) throw new Error("NASA returned no data.");
 
         // --- Parsing Logic ---
-        const lines = data.result.split('\n');
-        let inData = false;
-        const x = [], y = [], z = [], dates = [];
+       const lines = data.result.split('\n');
+let inData = false;
+const x = [], y = [], z = [];
 
-        lines.forEach(line => {
-            if (line.includes('$$SOE')) { inData = true; return; }
-            if (line.includes('$$EOE')) { inData = false; return; }
-            if (inData) {
-                const cols = line.split(',').map(s => s.trim());
-                if (cols.length >= 5) {
-                    dates.push(cols[1]); 
-                    x.push(parseFloat(cols[2]));
-                    y.push(parseFloat(cols[3]));
-                    z.push(parseFloat(cols[4]));
-                }
-            }
-        });
+lines.forEach(line => {
+    // 1. Only look at lines between these markers
+    if (line.includes('$$SOE')) { inData = true; return; }
+    if (line.includes('$$EOE')) { inData = false; return; }
+    
+    if (inData) {
+        // 2. Clean the line: replace commas with spaces, then split by space
+        // This handles cases where JPL uses different delimiters
+        const parts = line.replace(/,/g, ' ').trim().split(/\s+/);
+        
+        // 3. In VECTORS mode, X, Y, Z are usually at index 2, 3, 4
+        // (Index 0 is Date, Index 1 is Time)
+        const xVal = parseFloat(parts[2]);
+        const yVal = parseFloat(parts[3]);
+        const zVal = parseFloat(parts[4]);
+
+        if (!isNaN(xVal)) {
+            x.push(xVal);
+            y.push(yVal);
+            z.push(zVal);
+        }
+    }
+});
+
+console.log("Parsed Points:", x.length); // If this is 0, the loop didn't find the markers
+
 
         plotData(x, y, z, dates, id);
     } catch (err) {
