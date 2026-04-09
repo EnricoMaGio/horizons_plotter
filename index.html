@@ -206,7 +206,7 @@
     </div>
 
     <script>
-        let targets = ["Solar Orbiter", "Earth"];
+        let targets = ["Solar Orbiter", "399"];
         const palette = ['#00d2ff', '#ff00ff', '#00ffaa', '#ffaa00', '#7000ff', '#ffffff', '#ff4d4d'];
 
         function renderTags() {
@@ -237,88 +237,104 @@
             return match ? match[1].trim() : null;
         }
 
-        async function fetchAndPlot() {
-            const statusEl = document.getElementById('status');
-            const centerInput = document.getElementById('centId').value;
-            const start = document.getElementById('startDate').value;
-            const end = document.getElementById('endDate').value;
-            const isRelative = document.getElementById('relativeToggle').checked;
-            const step = `${document.getElementById('stepVal').value} ${document.getElementById('stepUnit').value}`;
-            const cleanRefPlane = document.getElementById('refPlane').value.charAt(0);
+      async function fetchAndPlot() {
+    const statusEl = document.getElementById('status');
+    const centerInput = document.getElementById('centId').value;
+    const isRelative = document.getElementById('relativeToggle').checked;
+    const step = `${document.getElementById('stepVal').value} ${document.getElementById('stepUnit').value}`;
+    const cleanRefPlane = document.getElementById('refPlane').value.charAt(0);
+    
+    let currentStart = document.getElementById('startDate').value;
+    let currentEnd = document.getElementById('endDate').value;
+    
+    if (targets.length === 0) { alert("Add at least one target."); return; }
+
+    statusEl.innerText = "LINKING TO NASA...";
+    let rawDataSets = [];
+
+    try {
+        for (let i = 0; i < targets.length; i++) {
+            statusEl.innerText = `FETCHING ${i+1}/${targets.length}...`;
             
-            if (targets.length === 0) { alert("Add at least one target."); return; }
+            const nasaUrl = `https://ssd.jpl.nasa.gov/api/horizons.api?format=json&COMMAND='${encodeURIComponent(targets[i])}'&OBJ_DATA='NO'&MAKE_EPHEM='YES'&EPHEM_TYPE='VECTORS'&CENTER='@${centerInput}'&START_TIME='${currentStart}'&STOP_TIME='${currentEnd}'&STEP_SIZE='${step}'&CSV_FORMAT='YES'&VEC_TABLE='1'&REF_PLANE='${cleanRefPlane}'`;
+            
+            const res = await fetch("https://corsproxy.io/?" + encodeURIComponent(nasaUrl));
+            const data = await res.json();
 
-            statusEl.innerText = "LINKING TO NASA...";
-            let rawDataSets = [];
-            let officialCenterName = centerInput;
+            // Scrape the exact boundary dates from the error message if the request was out of range
+            const priorMatch = data.result.match(/prior\s+(?:to\s+)?A\.D\.\s+([\d\- \w:]+\.\d+)/i);
+            const afterMatch = data.result.match(/after\s+A\.D\.\s+([\d\- \w:]+\.\d+)/i);
 
-            try {
-                // Check Center Body
-                const cCheckUrl = `https://ssd.jpl.nasa.gov/api/horizons.api?format=json&COMMAND='${encodeURIComponent(centerInput)}'`;
-                const cRes = await fetch("https://corsproxy.io/?" + encodeURIComponent(cCheckUrl));
-                const cData = await cRes.json();
-                if (cData.result && cData.result.includes("matches")) {
-                    showSelection(cData.result, null, "Select Center Body", (id) => {
-                        document.getElementById('centId').value = id;
-                        fetchAndPlot();
-                    });
-                    return;
+            if (priorMatch || afterMatch) {
+                if (priorMatch) {
+                    let newStart = new Date(priorMatch[1]);
+                    // Tightened 1-second buffer
+                    newStart.setSeconds(newStart.getSeconds() + 1); 
+                    document.getElementById('startDate').value = newStart.toISOString().split('T')[0] + " " + newStart.toTimeString().split(' ')[0];
                 }
+                if (afterMatch) {
+                    let newEnd = new Date(afterMatch[1]);
+                    // Tightened 1-second buffer
+                    newEnd.setSeconds(newEnd.getSeconds() - 1); 
+                    document.getElementById('endDate').value = newEnd.toISOString().split('T')[0] + " " + newEnd.toTimeString().split(' ')[0];
+                }
+                
+                // Trigger a re-fetch with the updated, valid dates
+                statusEl.innerText = "ADJUSTING WINDOW...";
+                setTimeout(fetchAndPlot, 50); 
+                return; 
+            }
 
-                for (let i = 0; i < targets.length; i++) {
-                    statusEl.innerText = `FETCHING ${i+1}/${targets.length}...`;
-                    const nasaUrl = `https://ssd.jpl.nasa.gov/api/horizons.api?format=json&COMMAND='${encodeURIComponent(targets[i])}'&OBJ_DATA='NO'&MAKE_EPHEM='YES'&EPHEM_TYPE='VECTORS'&CENTER='@${centerInput}'&START_TIME='${start} UTC'&STOP_TIME='${end}'&STEP_SIZE='${step}'&CSV_FORMAT='YES'&VEC_TABLE='1'&REF_PLANE='${cleanRefPlane}'`;
-                    const res = await fetch("https://corsproxy.io/?" + encodeURIComponent(nasaUrl));
-                    const data = await res.json();
+            if (data.result.includes("matches")) {
+                showSelection(data.result, i, `Resolve "${targets[i]}"`, (id, idx) => {
+                    targets[idx] = id; renderTags(); fetchAndPlot();
+                });
+                return;
+            }
 
-                    if (data.result.includes("matches")) {
-                        showSelection(data.result, i, `Resolve "${targets[i]}"`, (id, idx) => {
-                            targets[idx] = id; renderTags(); fetchAndPlot();
-                        });
-                        return;
+            const x = [], y = [], z = [], d = [];
+            let inData = false;
+            data.result.split('\n').forEach(line => {
+                if (line.includes('$$SOE')) inData = true;
+                else if (line.includes('$$EOE')) inData = false;
+                else if (inData) {
+                    const cols = line.split(',');
+                    if (cols.length >= 5) { 
+                        d.push(cols[1].trim()); 
+                        x.push(parseFloat(cols[2])); y.push(parseFloat(cols[3])); z.push(parseFloat(cols[4])); 
                     }
-
-                    const officialTargetName = parseBodyName(data.result, "Target body name") || targets[i];
-                    officialCenterName = parseBodyName(data.result, "Center body name") || centerInput;
-
-                    const x = [], y = [], z = [], d = [];
-                    let inData = false;
-                    data.result.split('\n').forEach(line => {
-                        if (line.includes('$$SOE')) inData = true;
-                        else if (line.includes('$$EOE')) inData = false;
-                        else if (inData) {
-                            const cols = line.split(',');
-                            if (cols.length >= 5) { d.push(cols[1].trim()); x.push(parseFloat(cols[2])); y.push(parseFloat(cols[3])); z.push(parseFloat(cols[4])); }
-                        }
-                    });
-
-                    rawDataSets.push({ name: officialTargetName, x, y, z, d });
                 }
-
-                let processedTraces = [];
-                let originLabel = officialCenterName;
-
-                if (isRelative && rawDataSets.length > 0) {
-                    const ref = rawDataSets[0];
-                    originLabel = `RELATIVE TO: ${ref.name}`;
-
-                    rawDataSets.forEach((set, i) => {
-                        const relX = set.x.map((val, idx) => val - ref.x[idx]);
-                        const relY = set.y.map((val, idx) => val - ref.y[idx]);
-                        const relZ = set.z.map((val, idx) => val - ref.z[idx]);
-                        
-                        processedTraces.push(createTrace(relX, relY, relZ, set.d, set.name, palette[i % palette.length]));
-                    });
-                } else {
-                    rawDataSets.forEach((set, i) => {
-                        processedTraces.push(createTrace(set.x, set.y, set.z, set.d, set.name, palette[i % palette.length]));
-                    });
-                }
-
-                renderPlot(processedTraces, originLabel, isRelative);
-                statusEl.innerText = `ACTIVE BODIES: ${targets.length}`;
-            } catch (err) { statusEl.innerText = "ERROR"; alert(err.message); }
+            });
+            rawDataSets.push({ 
+                name: parseBodyName(data.result, "Target body name") || targets[i], 
+                x, y, z, d 
+            });
         }
+
+        // Processing & Rendering logic
+        let processedTraces = [];
+        if (isRelative && rawDataSets.length > 0) {
+            const ref = rawDataSets[0];
+            rawDataSets.forEach((set, i) => {
+                const relX = set.x.map((v, idx) => v - ref.x[idx]);
+                const relY = set.y.map((v, idx) => v - ref.y[idx]);
+                const relZ = set.z.map((v, idx) => v - ref.z[idx]);
+                processedTraces.push(createTrace(relX, relY, relZ, set.d, set.name, palette[i % palette.length]));
+            });
+        } else {
+            rawDataSets.forEach((set, i) => {
+                processedTraces.push(createTrace(set.x, set.y, set.z, set.d, set.name, palette[i % palette.length]));
+            });
+        }
+        
+        renderPlot(processedTraces, centerInput, isRelative);
+        statusEl.innerText = `ACTIVE BODIES: ${targets.length}`;
+
+    } catch (err) { 
+        statusEl.innerText = "ERROR"; 
+        console.error(err);
+    }
+}
 
         function createTrace(x, y, z, d, name, color) {
             return {
