@@ -150,7 +150,7 @@
                 }
 
                 // Main API Data Call
-                const cleanRefPlane = refPlaneRaw;
+                const cleanRefPlane = refPlaneRaw.charAt(0);
                 const nasaUrl = `https://ssd.jpl.nasa.gov/api/horizons.api?format=json` + 
                     `&COMMAND='${targetInput}'` +
                     `&OBJ_DATA='NO'` +
