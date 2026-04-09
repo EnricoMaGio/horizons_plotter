@@ -31,23 +31,21 @@ async function fetchAndPlot() {
     const start = document.getElementById('startDate').value;
     const end = document.getElementById('endDate').value;
     
-    // 1. Define the NASA URL
-    const baseUrl = "https://ssd-api.jpl.nasa.gov/horizons.api";
-    const params = `?format=json&COMMAND='${id}'&OBJ_DATA='NO'&MAKE_EPHEM='YES'&EPHEM_TYPE='VECTORS'&CENTER='@sun'&START_TIME='${start}'&STOP_TIME='${end}'&STEP_SIZE='1d'&OUT_UNITS='AU'`;
-    const fullNasaUrl = baseUrl + params;
+    // The NASA URL
+    const nasaUrl = `https://ssd-api.jpl.nasa.gov/horizons.api?format=json&COMMAND='${id}'&OBJ_DATA='NO'&MAKE_EPHEM='YES'&EPHEM_TYPE='VECTORS'&CENTER='@sun'&START_TIME='${start}'&STOP_TIME='${end}'&STEP_SIZE='1d'&OUT_UNITS='AU'`;
 
-    // 2. Wrap it in the AllOrigins Proxy URL
-    const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(fullNasaUrl)}`;
+    // NEW PROXY: Use 'corsproxy.io' correctly or 'cors-anywhere'
+    // This proxy is specifically designed to work with GitHub Pages
+    const proxyUrl = "https://corsproxy.io/?" + encodeURIComponent(nasaUrl);
 
     try {
         const response = await fetch(proxyUrl);
-        if (!response.ok) throw new Error("Proxy server error");
         
-        // 3. AllOrigins returns a JSON object. The NASA data is inside 'contents'
-        const wrapper = await response.json();
-        const data = JSON.parse(wrapper.contents); 
+        if (!response.ok) throw new Error(`Server responded with ${response.status}`);
         
-        if (!data.result) throw new Error("NASA returned no data for this ID/Date.");
+        const data = await response.json();
+        
+        if (!data.result) throw new Error("NASA returned no data.");
 
         // --- Parsing Logic ---
         const lines = data.result.split('\n');
