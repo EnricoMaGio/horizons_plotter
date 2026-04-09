@@ -46,7 +46,6 @@
 
         #selectionOverlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); z-index: 2000; justify-content: center; align-items: center; }
         .selection-box { background: var(--panel-color); padding: 30px; border-radius: 12px; max-width: 600px; width: 90%; max-height: 80vh; overflow-y: auto; border: 1px solid var(--border-color); }
-        .selection-box h3 { color: var(--accent-color); margin-top: 0; }
         .object-item { display: block; width: 100%; text-align: left; padding: 12px; margin: 8px 0; background: #0d1117; color: var(--text-main); border: 1px solid var(--border-color); cursor: pointer; border-radius: 6px; }
         .object-item:hover { border-color: var(--accent-color); background: #1c2128; }
         .close-btn { background: #444; color: white; margin-top: 15px; width: 100%; }
@@ -130,13 +129,12 @@
             const start = document.getElementById('startDate').value;
             const end = document.getElementById('endDate').value;
             const step = `${document.getElementById('stepVal').value} ${document.getElementById('stepUnit').value}`;
-            const refPlane = document.getElementById('refPlane').value;
+            const refPlaneRaw = document.getElementById('refPlane').value;
 
-            // 1. Check Center Ambiguity separately
-            const centerCheckUrl = `https://ssd.jpl.nasa.gov/api/horizons.api?format=json&COMMAND='${centerId}'`;
+            // 1. Check Center Ambiguity
             try {
-                const cRes = await fetch("https://corsproxy.io/?" + encodeURIComponent(centerCheckUrl));
-                const cData = await cRes.json();
+                const cCheck = await fetch("https://corsproxy.io/?" + encodeURIComponent(`https://ssd.jpl.nasa.gov/api/horizons.api?format=json&COMMAND='${centerId}'`));
+                const cData = await cCheck.json();
                 if (cData.result && cData.result.includes("Number of matches")) {
                     showSelection(cData.result, "centId", "Select Center Body");
                     statusEl.innerText = "Select Center Body...";
@@ -144,42 +142,41 @@
                 }
             } catch(e) {}
 
-            // 2. Build URL with CRITICAL QUOTES for REF_PLANE to fix 'BODY EQUATOR' error
-            const params = new URLSearchParams({
-                format: 'json',
-                COMMAND: `'${targetId}'`,
-                OBJ_DATA: 'NO',
-                MAKE_EPHEM: 'YES',
-                EPHEM_TYPE: 'VECTORS',
-                CENTER: `'@${centerId}'`,
-                REF_PLANE: `'${refPlane}'`, // Fixed: Quoted value
-                START_TIME: `'${start}'`,
-                STOP_TIME: `'${end}'`,
-                STEP_SIZE: `'${step}'`,
-                CSV_FORMAT: 'YES',
-                VEC_TABLE: '1'
-            });
+            // 2. Build URL manually to ensure strict NASA-compliant quoting and space-handling
+            const cleanRefPlane = refPlaneRaw.replace(" ", "+");
+            const baseUrl = "https://ssd.jpl.nasa.gov/api/horizons.api?format=json";
+            const query = [
+                `COMMAND='${targetId}'`,
+                `CENTER='@${centerId}'`,
+                `MAKE_EPHEM='YES'`,
+                `EPHEM_TYPE='VECTORS'`,
+                `REF_PLANE='${cleanRefPlane}'`, // Fixed space handling
+                `START_TIME='${start}'`,
+                `STOP_TIME='${end}'`,
+                `STEP_SIZE='${step}'`,
+                `OBJ_DATA='NO'`,
+                `CSV_FORMAT='YES'`,
+                `VEC_TABLE='1'`
+            ].join('&');
 
-            const nasaUrl = `https://ssd.jpl.nasa.gov/api/horizons.api?${params.toString()}`;
+            const nasaUrl = `${baseUrl}&${query}`;
             
             try {
                 const response = await fetch("https://corsproxy.io/?" + encodeURIComponent(nasaUrl));
                 const data = await response.json();
 
-                // 3. Check Target Ambiguity
                 if (data.result && data.result.includes("Number of matches")) {
                     showSelection(data.result, "objId", "Select Target Object");
                     statusEl.innerText = "Select Target...";
                     return;
                 }
 
-                if (data.result && data.result.includes("INPUT ERROR")) {
-                    console.error("NASA Response:", data.result);
-                    throw new Error("Horizons API error. Check if 'BODY EQUATOR' is valid for this specific center.");
+                if (data.result && (data.result.includes("INPUT ERROR") || data.result.includes("Too many constants"))) {
+                    throw new Error("JPL API Error: Check if BODY EQUATOR is supported for this center.");
                 }
 
-                let targetName = targetId;
-                let centerName = centerId;
+                // Restore dynamic name extraction
+                let targetName = targetId, centerName = centerId;
                 const tNameMatch = data.result.match(/Target body name:\s+([^({\n]+)/);
                 if (tNameMatch) targetName = tNameMatch[1].trim();
                 const cNameMatch = data.result.match(/Center body name:\s+([^({\n]+)/);
@@ -215,7 +212,7 @@
         function showSelection(resultText, targetFieldId, title) {
             const listDiv = document.getElementById('objectList');
             document.getElementById('selectionTitle').innerText = title;
-            document.getElementById('selectionText').innerText = `Select the specific body for "${document.getElementById(targetFieldId).value}":`;
+            document.getElementById('selectionText').innerText = `Select specific body:`;
             listDiv.innerHTML = "";
             const lines = resultText.split('\n');
             lines.forEach(line => {
