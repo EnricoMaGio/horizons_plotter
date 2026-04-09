@@ -222,7 +222,7 @@
                 const cCheckUrl = `https://ssd.jpl.nasa.gov/api/horizons.api?format=json&COMMAND='${encodeURIComponent(centerInput)}'`;
                 const cRes = await fetch("https://corsproxy.io/?" + encodeURIComponent(cCheckUrl));
                 const cData = await cRes.json();
-                if (cData.result && cData.result.includes("Number of matches")) {
+                if (cData.result && cData.result.includes("matches")) {
                     showSelection(cData.result, null, "Select Center Body", (id) => {
                         document.getElementById('centId').value = id;
                         fetchAndPlot();
@@ -236,7 +236,7 @@
                     const res = await fetch("https://corsproxy.io/?" + encodeURIComponent(nasaUrl));
                     const data = await res.json();
 
-                    if (data.result.includes("Number of matches")) {
+                    if (data.result.includes("matches")) {
                         showSelection(data.result, i, `Resolve "${targets[i]}"`, (id, idx) => {
                             targets[idx] = id; renderTags(); fetchAndPlot();
                         });
