@@ -92,7 +92,7 @@
         <div class="sidebar">
             <div class="sidebar-header"><h2>NASA JPL Horizons Plotter</h2></div>
             
-                <div style="margin-top: 10px;margin-bottom: 10px; padding: 10px; border: 1px solid var(--border); border-radius: 6px; background: rgba(255,255,255,0.03);">
+                <div style="margin-top: 10px;margin-bottom: 10px;margin-right: 10px; padding: 10px; border: 1px solid var(--border); border-radius: 6px; background: rgba(255,255,255,0.03);">
                     <p style="font-size: 0.65rem; color: var(--text-dim); margin: 0;">
                         <strong>Note:</strong> Colored dots on the plot represent the final position of each body at the "End Date".
                     </p>
@@ -281,7 +281,7 @@
                 }
 
                 renderPlot(traces, officialCenterName);
-                statusEl.innerText = `ACTIVE TRACKING\nCENTER: ${officialCenterName.split('(')[0].trim()}`;
+                statusEl.innerText = `ACTIVE BODIES: ${targets.length}`;
             } catch (err) { statusEl.innerText = "ERROR"; alert(err.message); }
         }
 
