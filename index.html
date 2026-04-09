@@ -19,6 +19,7 @@
         body, html { height: 100%; margin: 0; overflow: hidden; }
         body { font-family: 'Segoe UI', Roboto, sans-serif; background: var(--bg-color); color: var(--text-main); display: flex; }
 
+        /* Professional Sidebar UI */
         .sidebar {
             width: 320px; min-width: 320px; background: var(--panel-color);
             border-right: 1px solid var(--border-color); padding: 24px;
@@ -26,17 +27,19 @@
             box-shadow: 4px 0 10px rgba(0,0,0,0.3); z-index: 10;
         }
 
-        h2 { font-size: 1.1rem; margin: 0; color: var(--accent-color); letter-spacing: 1px; text-transform: uppercase; border-bottom: 1px solid var(--border-color); padding-bottom: 15px; }
+        h2 { font-size: 1.1rem; margin: 0 0 5px 0; color: var(--accent-color); letter-spacing: 1px; text-transform: uppercase; border-bottom: 1px solid var(--border-color); padding-bottom: 15px; }
 
         .input-group { display: flex; flex-direction: column; gap: 5px; }
         .input-group label { font-size: 0.85rem; font-weight: 600; }
         .input-group span { font-size: 0.72rem; color: var(--text-muted); line-height: 1.2; }
 
         input, select { padding: 10px; background: #0d1117; border: 1px solid var(--border-color); border-radius: 6px; color: white; font-size: 0.9rem; }
+        input:focus { outline: none; border-color: var(--accent-color); }
+
         .step-row { display: flex; gap: 5px; }
         #stepVal { width: 60px; } #stepUnit { flex-grow: 1; }
 
-        button { background: var(--accent-color); color: #000; padding: 12px; border-radius: 6px; border: none; cursor: pointer; font-weight: bold; margin-top: 10px; }
+        button { background: var(--accent-color); color: #000; padding: 12px; border-radius: 6px; border: none; cursor: pointer; font-weight: bold; margin-top: 10px; transition: background 0.2s; }
         button:hover { background: var(--accent-hover); }
 
         .main-content { flex-grow: 1; position: relative; background: #000; min-width: 0; min-height: 0; display: flex; }
@@ -44,9 +47,11 @@
 
         #status { position: absolute; top: 20px; right: 20px; padding: 8px 15px; background: rgba(0,0,0,0.8); border-radius: 20px; font-size: 0.8rem; border: 1px solid var(--border-color); color: var(--accent-color); z-index: 100; }
 
+        /* Ambiguity Selection Modal */
         #selectionOverlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); z-index: 2000; justify-content: center; align-items: center; }
-        .selection-box { background: var(--panel-color); padding: 30px; border-radius: 12px; max-width: 600px; width: 90%; max-height: 80vh; overflow-y: auto; border: 1px solid var(--border-color); }
-        .object-item { display: block; width: 100%; text-align: left; padding: 12px; margin: 8px 0; background: #0d1117; color: var(--text-main); border: 1px solid var(--border-color); cursor: pointer; border-radius: 6px; }
+        .selection-box { background: var(--panel-color); padding: 30px; border-radius: 12px; max-width: 600px; width: 90%; max-height: 80vh; overflow-y: auto; border: 1px solid var(--border-color); box-shadow: 0 10px 40px rgba(0,0,0,0.5); }
+        .selection-box h3 { color: var(--accent-color); margin-top: 0; }
+        .object-item { display: block; width: 100%; text-align: left; padding: 12px; margin: 8px 0; background: #0d1117; color: var(--text-main); border: 1px solid var(--border-color); cursor: pointer; border-radius: 6px; font-size: 0.9rem; }
         .object-item:hover { border-color: var(--accent-color); background: #1c2128; }
         .close-btn { background: #444; color: white; margin-top: 15px; width: 100%; }
     </style>
@@ -58,18 +63,19 @@
         
         <div class="input-group">
             <label for="objId">Target Object</label>
-            <span>Target name or ID (e.g., 'Solar Orbiter').</span>
+            <span>Object name or ID (e.g., 'Solar Orbiter' or '-144').</span>
             <input type="text" id="objId" value="Solar Orbiter">
         </div>
 
         <div class="input-group">
             <label for="centId">Coordinate Center</label>
-            <span>Origin point (e.g., 'Sun' or 'Earth').</span>
+            <span>Origin of the grid (e.g., 'Sun' or 'Earth').</span>
             <input type="text" id="centId" value="Sun">
         </div>
 
         <div class="input-group">
             <label for="refPlane">Reference Plane</label>
+            <span>Plane for X-Y orientation.</span>
             <select id="refPlane">
                 <option value="ECLIPTIC" selected>Ecliptic</option>
                 <option value="FRAME">Frame (Equator)</option>
@@ -79,16 +85,19 @@
 
         <div class="input-group">
             <label for="startDate">Start Date/Time</label>
+            <span>UTC format (YYYY-MM-DD).</span>
             <input type="text" id="startDate" value="2020-02-10 00:00:00">
         </div>
 
         <div class="input-group">
             <label for="endDate">End Date/Time</label>
+            <span>Ending time for trajectory.</span>
             <input type="text" id="endDate" value="2021-02-10 00:00:00">
         </div>
 
         <div class="input-group">
             <label>Step Size</label>
+            <span>Frequency of data points.</span>
             <div class="step-row">
                 <input type="number" id="stepVal" value="1">
                 <select id="stepUnit">
@@ -129,9 +138,9 @@
             const start = document.getElementById('startDate').value;
             const end = document.getElementById('endDate').value;
             const step = `${document.getElementById('stepVal').value} ${document.getElementById('stepUnit').value}`;
-            const refPlane = document.getElementById('refPlane').value;
+            const refPlaneRaw = document.getElementById('refPlane').value;
 
-            // 1. Separate Ambiguity Check for Center
+            // 1. Separate Check for Center Ambiguity
             try {
                 const cCheckUrl = `https://ssd.jpl.nasa.gov/api/horizons.api?format=json&COMMAND='${encodeURIComponent(centerInput)}'`;
                 const cRes = await fetch("https://corsproxy.io/?" + encodeURIComponent(cCheckUrl));
@@ -143,10 +152,10 @@
                 }
             } catch(e) {}
 
-            // 2. Build the main Data URL
-            // Note: We wrap values in single quotes as required by Horizons, then encode the whole string
-            const nasaUrl = `https://ssd.jpl.nasa.gov/api/horizons.api?` + 
-                `format=json` +
+            // 2. Main API Call
+            // Note: Single quotes are URL-encoded. SPACE is replaced with + for NASA internal parser.
+            const cleanRefPlane = refPlaneRaw.replace(" ", "+");
+            const nasaUrl = `https://ssd.jpl.nasa.gov/api/horizons.api?format=json` + 
                 `&COMMAND='${targetInput}'` +
                 `&OBJ_DATA='NO'` +
                 `&MAKE_EPHEM='YES'` +
@@ -157,24 +166,24 @@
                 `&STEP_SIZE='${step}'` +
                 `&CSV_FORMAT='YES'` +
                 `&VEC_TABLE='1'` +
-                `&REF_PLANE='${refPlane}'`;
+                `&REF_PLANE='${cleanRefPlane}'`;
 
             try {
                 const response = await fetch("https://corsproxy.io/?" + encodeURIComponent(nasaUrl));
                 const data = await response.json();
 
-                // 3. Separate Ambiguity Check for Target
+                // 3. Separate Check for Target Ambiguity
                 if (data.result && data.result.includes("Number of matches")) {
                     showSelection(data.result, "objId", "Select Target Object");
                     statusEl.innerText = "Select Target...";
                     return;
                 }
 
-                if (data.result && data.result.includes("INPUT ERROR")) {
-                    throw new Error("JPL Input Error: Check if BODY EQUATOR is valid for this center/target combo.");
+                if (data.result && (data.result.includes("INPUT ERROR") || data.result.includes("Too many constants"))) {
+                    throw new Error("JPL API Error: Plane configuration invalid for this center.");
                 }
 
-                // 4. Extract Names for Legend
+                // 4. Name Extraction for Legend
                 let targetName = targetInput, centerName = centerInput;
                 const tNameMatch = data.result.match(/Target body name:\s+([^({\n]+)/);
                 if (tNameMatch) targetName = tNameMatch[1].trim();
@@ -212,7 +221,7 @@
         function showSelection(resultText, targetFieldId, title) {
             const listDiv = document.getElementById('objectList');
             document.getElementById('selectionTitle').innerText = title;
-            document.getElementById('selectionText').innerText = `Matches found for "${document.getElementById(targetFieldId).value}":`;
+            document.getElementById('selectionText').innerText = `Specific identity required for "${document.getElementById(targetFieldId).value}":`;
             listDiv.innerHTML = "";
             const lines = resultText.split('\n');
             lines.forEach(line => {
@@ -233,7 +242,7 @@
         }
 
         function plotData(x, y, z, dates, tName, cName) {
-            // Manual isometric scaling (equal axes)
+            // Isometric Scaling (Equal Axes Range)
             const combined = [...x, ...y, ...z];
             const maxVal = Math.max(...combined), minVal = Math.min(...combined);
             const midX = (Math.max(...x) + Math.min(...x)) / 2;
@@ -259,7 +268,7 @@
                     yaxis: { range: [midY - range, midY + range], title: 'Y (km)', gridcolor: '#1a1a1a' },
                     zaxis: { range: [midZ - range, midZ + range], title: 'Z (km)', gridcolor: '#1a1a1a' }
                 },
-                legend: { font: { color: 'white' }, x: 0, y: 1 },
+                legend: { font: { color: 'white' }, x: 0.1, y: 0.9 },
                 uirevision: 'true'
             }, { responsive: true });
         }
