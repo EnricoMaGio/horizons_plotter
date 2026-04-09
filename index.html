@@ -119,7 +119,11 @@
         <div class="sidebar">
             <div class="sidebar-header"><h2>NASA JPL Horizons Plotter</h2></div>
             
+
             <div class="scroll-area">
+
+
+
                 <div class="input-group">
                     <label>Target Objects</label>
                     <span>Track multiple bodies simultaneously.</span>
@@ -129,6 +133,7 @@
                     </div>
                     <div id="tagList" class="tag-list"></div>
                 </div>
+
 
                 <div class="switch-group">
                     <label class="switch-container">
@@ -192,6 +197,17 @@
 
         <div class="main-content">
             <div id="status">SYSTEM READY</div>
+<div style="margin-top: 10px;margin-bottom: 1px;margin-right: 800px; padding: 10px; border: 1px solid var(--border); border-radius: 6px; background: rgba(255,255,255,0.03);">
+                    <p style="font-size: 0.65rem; color: var(--text-dim); margin: 0;">
+                        <strong>Note:</strong> Colored dots represent positions at <b>End Date.
+                    </p>
+                </div>
+
+<div style="margin-top: 1px;margin-bottom: 10px;margin-right: 800px; padding: 10px; border: 1px solid var(--border); border-radius: 6px; background: rgba(255,255,255,0.03);">
+                    <p style="font-size: 0.65rem; color: var(--text-dim); margin: 0;">
+                        <strong>Note:</strong> Dates auto-adjust to fit available data.
+                    </p>
+                </div>
             <div id="plot"></div>
         </div>
     </div>
@@ -243,8 +259,7 @@ async function fetchAndPlot() {
     const isRelative = document.getElementById('relativeToggle').checked;
     const step = `${document.getElementById('stepVal').value} ${document.getElementById('stepUnit').value}`;
     const cleanRefPlane = document.getElementById('refPlane').value.charAt(0);
-const futureInfinity = new Date(8640000000000000);
-    const pastInfinity = new Date(-8640000000000000);
+
     let currentStartStr = document.getElementById('startDate').value.trim();
     let currentEndStr = document.getElementById('endDate').value.trim();
     
@@ -278,7 +293,7 @@ const futureInfinity = new Date(8640000000000000);
                     // CASE: User's entire window is before the mission starts
                     if (userEnd <= limitStart) {
                         // Move End Date first to make room, then move Start Date
-                        let newEnd = new Date(limitStart);
+                        let newEnd = new Date(newStart.getDate() + 1);
                         newEnd.setDate(futureInfinity); // Default to 1 day span
                         document.getElementById('endDate').value = newEnd.toISOString().split('T')[0] + " 00:00:00";
                     }
@@ -297,7 +312,7 @@ const futureInfinity = new Date(8640000000000000);
                     // CASE: User's entire window is after the mission ended
                     if (userStart >= limitEnd) {
                         let newStart = new Date(limitEnd);
-                        newStart.setDate(pastInfinity); // Default to 1 day span
+                        newStart.setDate(newStart.getDate() - 1); // Default to 1 day span
                         document.getElementById('startDate').value = newStart.toISOString().split('T')[0] + " 00:00:01";
                     }
 
