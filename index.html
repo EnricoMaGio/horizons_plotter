@@ -52,12 +52,16 @@ async function fetchAndPlot() {
 
         // 2. Improved Parsing for CSV Output
 
-
-// --- 1. Extract the Object Name ---
         let displayName = `Object ${id}`; // Fallback
-        const nameMatch = data.result.match(/Target body name:\s+([^({\n]+)/);
+        let nameMatch = data.result.match(/Target body name:\s+([^({\n]+)/);
         if (nameMatch && nameMatch[1]) {
             displayName = nameMatch[1].trim();
+        }
+
+        let centerName = `Object ${centerId}`; // Fallback
+        nameMatch = data.result.match(/Center body name:\s+([^({\n]+)/);
+        if (nameMatch && nameMatch[1]) {
+            centerName = nameMatch[1].trim();
         }
 
         const lines = data.result.split('\n');
@@ -83,20 +87,20 @@ async function fetchAndPlot() {
             alert("No data points found. Check if the Object ID is correct (e.g., '499' for Mars).");
         }
 
-        plotData(x, y, z, dates, id);
+        plotData(x, y, z, dates, displayName, centerName);
     } catch (err) {
         console.error(err);
         alert("Error: " + err.message);
     }
 }    
-        function plotData(x, y, z, dates, id) {
+        function plotData(x, y, z, dates, displayName, centerName) {
             const trace = {
                 x: x, y: y, z: z,
                 mode: 'lines',
                 type: 'scatter3d',
                 text: dates,
                 line: { width: 4, color: '#00f2ff' },
-                name: $displayName
+                name: displayName
             };
 
             const center = {
@@ -104,7 +108,7 @@ async function fetchAndPlot() {
                 mode: 'markers',
                 type: 'scatter3d',
                 marker: { size: 4, color: 'white' },
-                name:  `Object ${centerId}`
+                name:  centerName
             };
 
 
