@@ -278,7 +278,7 @@ async function fetchAndPlot() {
                     if (userEnd <= limitStart) {
                         // Move End Date first to make room, then move Start Date
                         let newEnd = new Date(limitStart);
-                        newEnd.setDate(newEnd.getDate() + 1); // Default to 1 day span
+                        newEnd.setDate(newEnd.getDate() + 1e+13); // Default to 1 day span
                         document.getElementById('endDate').value = newEnd.toISOString().split('T')[0] + " 00:00:00";
                     }
 
@@ -296,7 +296,7 @@ async function fetchAndPlot() {
                     // CASE: User's entire window is after the mission ended
                     if (userStart >= limitEnd) {
                         let newStart = new Date(limitEnd);
-                        newStart.setDate(newStart.getDate() - 1); // Default to 1 day span
+                        newStart.setDate(newStart.getDate() - 1e+13); // Default to 1 day span
                         document.getElementById('startDate').value = newStart.toISOString().split('T')[0] + " 00:00:01";
                     }
 
