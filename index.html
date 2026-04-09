@@ -96,14 +96,14 @@ async function fetchAndPlot() {
             };
 
             const layout = {
-                paper_bgcolor: '#1a1a1a',
-                plot_bgcolor: '#1a1a1a',
-                margin: { l:0, r:0, b:0, t:0 },
-                scene: {
-                    xaxis: { title: 'X (AU)', gridcolor: '#444' },
-                    yaxis: { title: 'Y (AU)', gridcolor: '#444' },
-                    zaxis: { title: 'Z (AU)', gridcolor: '#444' }
-                },
+                paper_bgcolor: '#050505', margin: {l:0, r:0, b:0, t:0},
+            uirevision: 'constant',
+            scene: {
+                xaxis: { showgrid: true, gridcolor: '#111', color: '#444', title: 'X [km]' },
+                yaxis: { showgrid: true, gridcolor: '#111', color: '#444', title: 'Y [km]' },
+                zaxis: { showgrid: true, gridcolor: '#111', color: '#444', title: 'Z [km]' },
+                aspectmode: 'data'
+            },
                 legend: { font: { color: 'white' } }
             };
 
