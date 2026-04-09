@@ -103,25 +103,32 @@ button.primary-btn { width: 100%; background: linear-gradient(135deg, #00d2ff 0%
 }
 
 
-/* Smooth transitions for the layout */
+/* Sidebar transition logic */
 .sidebar {
-    transition: transform 0.3s ease, margin-left 0.3s ease;
+    transition: transform 0.3s ease, margin-left 0.3s ease, margin-top 0.3s ease;
 }
 
-.main-content {
-    transition: width 0.3s ease;
-}
-
-/* The "Hidden" State */
+/* Desktop: Slide left */
 .sidebar.hidden {
-    margin-left: -320px; /* Matches the sidebar width */
+    margin-left: -320px;
 }
 
-/* Mobile adjustment for hidden state */
+/* Mobile: Slide up and cap plot height */
 @media (max-width: 768px) {
     .sidebar.hidden {
         margin-left: 0;
-        margin-top: -45vh; /* Slides up on mobile */
+        margin-top: -45vh; /* Slides the sidebar up */
+    }
+
+    /* Keep the plot from taking over the whole screen on mobile */
+    .sidebar.hidden ~ .main-content {
+        height: 60vh; 
+        flex: none;
+    }
+    
+    .main-content {
+        transition: height 0.3s ease;
+        height: 55vh; /* Default height when sidebar is visible */
     }
 }
     </style>
@@ -469,20 +476,22 @@ async function fetchAndPlot() {
 function toggleSidebar() {
     const sidebar = document.querySelector('.sidebar');
     const toggleBtn = document.getElementById('toggleSidebar');
+    const isMobile = window.innerWidth <= 768;
     
     sidebar.classList.toggle('hidden');
-    
-    // Change button icon/text based on state
-    if (sidebar.classList.contains('hidden')) {
-        toggleBtn.innerText = '→'; 
+    const isHidden = sidebar.classList.contains('hidden');
+
+    // Update icons based on device and state
+    if (isMobile) {
+        toggleBtn.innerText = isHidden ? '↓' : '↑';
     } else {
-        toggleBtn.innerText = '☰';
+        toggleBtn.innerText = isHidden ? '→' : '☰';
     }
 
-    // Force Plotly to resize to the new container width
+    // Recalculate Plotly layout
     setTimeout(() => {
         Plotly.Plots.resize('plot');
-    }, 310); // Wait for CSS transition to finish
+    }, 310);
 }
 
         renderTags();
