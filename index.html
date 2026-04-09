@@ -33,7 +33,7 @@ async function fetchAndPlot() {
     
     // 1. Dynamically build the URL based on user input
     // Added 'CSV=YES' to make parsing easier
-    const nasaUrl = `https://ssd.jpl.nasa.gov/api/horizons.api?format=json&COMMAND='${id}'&OBJ_DATA='NO'&MAKE_EPHEM='YES'&EPHEM_TYPE='VECTORS'&CENTER='500@10'&START_TIME='${start}'&STOP_TIME='${end}'&STEP_SIZE='1d'&CSV='YES'`;
+    const nasaUrl = `https://ssd.jpl.nasa.gov/api/horizons.api?format=json&COMMAND='${id}'&OBJ_DATA='NO'&MAKE_EPHEM='YES'&EPHEM_TYPE='VECTORS'&CENTER='500@10'&START_TIME='${start}'&STOP_TIME='${end}'&STEP_SIZE='1d'&CSV_FORMAT='YES'&VEC_TABLE='1'`;
 
     const proxyUrl = "https://corsproxy.io/?" + encodeURIComponent(nasaUrl);
 
