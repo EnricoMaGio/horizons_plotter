@@ -337,7 +337,7 @@ button.primary-btn { width: 100%; background: linear-gradient(135deg, #00d2ff 0%
                         processedTraces.push(createTrace(set.x, set.y, set.z, set.d, set.name, palette[i % palette.length]));
                     });
                 }
-                renderPlot(processedTraces, centerInput, isRelative);
+                renderPlot(processedTraces, parseBodyName(data.result, "Target body name"), isRelative);
                 statusEl.innerText = `ACTIVE BODIES: ${targets.length}`;
             } catch (err) { statusEl.innerText = "ERROR"; alert(err.message); }
         }
