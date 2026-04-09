@@ -46,7 +46,18 @@ async function fetchAndPlot() {
         if (!response.ok) throw new Error(`Server responded with ${response.status}`);
         
         const data = await response.json();
-        if (!data.result) throw new Error("NASA returned no data.");
+
+// CHECK FOR AMBIGUOUS RESULTS
+        // If NASA doesn't find a direct match, it returns a list of suggestions in the 'result' field
+        if (data.result && data.result.includes("Multiple objects found")) {
+            alert("Multiple objects found. Please be more specific (e.g., 'Solar Orbiter' or '-144').");
+            console.log("Suggestions:", data.result);
+            return;
+        }
+
+        if (!data.result || data.result.includes("No object found")) {
+            throw new Error("NASA could not find that object.");
+        }
 
         const x = [], y = [], z = [], dates = [];
 
