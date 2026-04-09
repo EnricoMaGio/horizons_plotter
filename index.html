@@ -15,6 +15,7 @@
             --text-main: #e6edf3;
             --text-dim: #8b949e;
             --border: rgba(255, 255, 255, 0.1);
+            --relative-mode: #ffaa00;
         }
 
         body, html { height: 100%; margin: 0; overflow: hidden; font-family: 'Inter', sans-serif; background: var(--bg-deep); color: var(--text-main); }
@@ -47,6 +48,29 @@
             color: #fff; font-size: 0.8rem; font-family: 'JetBrains Mono', monospace;
         }
 
+        /* Toggle Switch Styling */
+        .switch-group {
+            background: rgba(255, 255, 255, 0.05);
+            padding: 12px;
+            border-radius: 8px;
+            border: 1px solid var(--border);
+            margin-bottom: 18px;
+        }
+        .switch-container { display: flex; align-items: center; justify-content: space-between; cursor: pointer; }
+        .switch-label { font-size: 0.75rem; font-weight: 600; }
+        .switch { position: relative; display: inline-block; width: 40px; height: 20px; }
+        .switch input { opacity: 0; width: 0; height: 0; }
+        .slider {
+            position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0;
+            background-color: #333; transition: .4s; border-radius: 20px;
+        }
+        .slider:before {
+            position: absolute; content: ""; height: 14px; width: 14px; left: 3px; bottom: 3px;
+            background-color: white; transition: .4s; border-radius: 50%;
+        }
+        input:checked + .slider { background-color: var(--relative-mode); }
+        input:checked + .slider:before { transform: translateX(20px); }
+
         /* Tag UI */
         .tag-input-container { display: flex; gap: 5px; }
         .tag-input-container input { flex: 1; }
@@ -57,6 +81,9 @@
             padding: 4px 8px; border-radius: 4px; font-size: 0.7rem; 
             display: flex; align-items: center; gap: 5px; color: var(--accent);
         }
+        /* Highlight first tag as reference if relative mode is active */
+        #relativeToggle:checked ~ * .tag:first-child,
+        .tag-is-reference { border-color: var(--relative-mode); color: var(--relative-mode); background: rgba(255, 170, 0, 0.1); }
         .tag span { cursor: pointer; font-weight: bold; color: #ff4a4a; margin-left: 4px; }
 
         .button-container {
@@ -92,12 +119,6 @@
         <div class="sidebar">
             <div class="sidebar-header"><h2>NASA JPL Horizons Plotter</h2></div>
             
-                <div style="margin-top: 10px;margin-bottom: 10px;margin-right: 10px; padding: 10px; border: 1px solid var(--border); border-radius: 6px; background: rgba(255,255,255,0.03);">
-                    <p style="font-size: 0.65rem; color: var(--text-dim); margin: 0;">
-                        <strong>Note:</strong> Colored dots on the plot represent the final position of each body at the "End Date".
-                    </p>
-                </div>
-
             <div class="scroll-area">
                 <div class="input-group">
                     <label>Target Objects</label>
@@ -107,6 +128,19 @@
                         <button class="add-tag-btn" onclick="addTag()">+</button>
                     </div>
                     <div id="tagList" class="tag-list"></div>
+                </div>
+
+                <div class="switch-group">
+                    <label class="switch-container">
+                        <span class="switch-label">Relative Motion Mode</span>
+                        <div class="switch">
+                            <input type="checkbox" id="relativeToggle">
+                            <span class="slider"></span>
+                        </div>
+                    </label>
+                    <p style="font-size: 0.65rem; color: var(--text-dim); margin-top: 8px; margin-bottom: 0;">
+                        Fixes coordinates to the <strong>first object</strong>. Center body is hidden.
+                    </p>
                 </div>
 
                 <div class="input-group">
@@ -149,8 +183,6 @@
                         </select>
                     </div>
                 </div>
-
-
             </div>
 
             <div class="button-container">
@@ -174,19 +206,22 @@
     </div>
 
     <script>
-        let targets = ["Solar Orbiter"];
+        let targets = ["Solar Orbiter", "Earth"];
         const palette = ['#00d2ff', '#ff00ff', '#00ffaa', '#ffaa00', '#7000ff', '#ffffff', '#ff4d4d'];
 
         function renderTags() {
             const list = document.getElementById('tagList');
+            const isRelative = document.getElementById('relativeToggle').checked;
             list.innerHTML = '';
             targets.forEach((t, i) => {
                 const tag = document.createElement('div');
-                tag.className = 'tag';
+                tag.className = 'tag' + (isRelative && i === 0 ? ' tag-is-reference' : '');
                 tag.innerHTML = `${t} <span onclick="removeTag(${i})">×</span>`;
                 list.appendChild(tag);
             });
         }
+
+        document.getElementById('relativeToggle').addEventListener('change', renderTags);
 
         function addTag() {
             const val = document.getElementById('tagInput').value.trim();
@@ -196,7 +231,6 @@
         document.getElementById('tagInput').onkeydown = (e) => { if(e.key === 'Enter') addTag(); };
         function removeTag(i) { targets.splice(i, 1); renderTags(); }
 
-        // Helper to extract official names from Horizons text output
         function parseBodyName(text, field) {
             const regex = new RegExp(`${field}\\s*:\\s*([^\\(\\n\\r]+)`, 'i');
             const match = text.match(regex);
@@ -208,13 +242,14 @@
             const centerInput = document.getElementById('centId').value;
             const start = document.getElementById('startDate').value;
             const end = document.getElementById('endDate').value;
+            const isRelative = document.getElementById('relativeToggle').checked;
             const step = `${document.getElementById('stepVal').value} ${document.getElementById('stepUnit').value}`;
             const cleanRefPlane = document.getElementById('refPlane').value.charAt(0);
             
             if (targets.length === 0) { alert("Add at least one target."); return; }
 
             statusEl.innerText = "LINKING TO NASA...";
-            let traces = [];
+            let rawDataSets = [];
             let officialCenterName = centerInput;
 
             try {
@@ -257,32 +292,47 @@
                         }
                     });
 
-                    const color = palette[i % palette.length];
-
-                    // Main Trajectory Line
-                    traces.push({
-                        x: x, y: y, z: z, text: d, mode: 'lines', type: 'scatter3d',
-                        name: officialTargetName,
-                        line: { width: 4, color: color }
-                    });
-
-                    // Endpoint Marker (Current Position)
-                    if (x.length > 0) {
-                        traces.push({
-                            x: [x[x.length - 1]], 
-                            y: [y[y.length - 1]], 
-                            z: [z[z.length - 1]],
-                            mode: 'markers', type: 'scatter3d',
-                            marker: { size: 6, color: color, symbol: 'circle', opacity: 1 },
-                            hoverinfo: 'skip',
-                            showlegend: false // Hide from legend
-                        });
-                    }
+                    rawDataSets.push({ name: officialTargetName, x, y, z, d });
                 }
 
-                renderPlot(traces, officialCenterName);
+                let processedTraces = [];
+                let originLabel = officialCenterName;
+
+                if (isRelative && rawDataSets.length > 0) {
+                    const ref = rawDataSets[0];
+                    originLabel = `RELATIVE TO: ${ref.name}`;
+
+                    rawDataSets.forEach((set, i) => {
+                        const relX = set.x.map((val, idx) => val - ref.x[idx]);
+                        const relY = set.y.map((val, idx) => val - ref.y[idx]);
+                        const relZ = set.z.map((val, idx) => val - ref.z[idx]);
+                        
+                        processedTraces.push(createTrace(relX, relY, relZ, set.d, set.name, palette[i % palette.length]));
+                    });
+                } else {
+                    rawDataSets.forEach((set, i) => {
+                        processedTraces.push(createTrace(set.x, set.y, set.z, set.d, set.name, palette[i % palette.length]));
+                    });
+                }
+
+                renderPlot(processedTraces, originLabel, isRelative);
                 statusEl.innerText = `ACTIVE BODIES: ${targets.length}`;
             } catch (err) { statusEl.innerText = "ERROR"; alert(err.message); }
+        }
+
+        function createTrace(x, y, z, d, name, color) {
+            return {
+                line: {
+                    x: x, y: y, z: z, text: d, mode: 'lines', type: 'scatter3d',
+                    name: name, line: { width: 4, color: color }
+                },
+                marker: {
+                    x: [x[x.length - 1]], y: [y[y.length - 1]], z: [z[z.length - 1]],
+                    mode: 'markers', type: 'scatter3d',
+                    marker: { size: 6, color: color, symbol: 'circle', opacity: 1 },
+                    hoverinfo: 'skip', showlegend: false
+                }
+            };
         }
 
         function showSelection(result, targetIdx, title, callback) {
@@ -302,37 +352,40 @@
             document.getElementById('selectionOverlay').style.display = 'flex';
         }
 
-        function renderPlot(traces, centerName) {
+        function renderPlot(tracePairs, centerName, isRelative) {
+            const traces = [];
             const allX = [], allY = [], allZ = [];
-            traces.forEach(t => { 
-                if(t.mode === 'lines') { // Only calculate range from lines to avoid marker influence
-                    allX.push(...t.x); allY.push(...t.y); allZ.push(...t.z); 
-                }
-            });
-            allX.push(0); allY.push(0); allZ.push(0);
 
-            const minX = Math.min(...allX), maxX = Math.max(...allX);
-            const minY = Math.min(...allY), maxY = Math.max(...allY);
-            const minZ = Math.min(...allZ), maxZ = Math.max(...allZ);
+            // ONLY draw the center body if NOT in relative mode
+            if (!isRelative) {
+                traces.push({
+                    x: [0], y: [0], z: [0], mode: 'markers', type: 'scatter3d',
+                    name: centerName, marker: { size: 8, color: '#fff' }
+                });
+            }
+
+            tracePairs.forEach(pair => {
+                traces.push(pair.line);
+                traces.push(pair.marker);
+                allX.push(...pair.line.x);
+                allY.push(...pair.line.y);
+                allZ.push(...pair.line.z);
+            });
+
+            const minX = Math.min(...allX, 0), maxX = Math.max(...allX, 0);
+            const minY = Math.min(...allY, 0), maxY = Math.max(...allY, 0);
+            const minZ = Math.min(...allZ, 0), maxZ = Math.max(...allZ, 0);
             const midX = (maxX + minX) / 2, midY = (maxY + minY) / 2, midZ = (maxZ + minZ) / 2;
             const maxSpan = Math.max(maxX - minX, maxY - minY, maxZ - minZ);
             const halfSpan = maxSpan / 2;
 
-            const axisRange = {
-                x: [midX - halfSpan, midX + halfSpan],
-                y: [midY - halfSpan, midY + halfSpan],
-                z: [midZ - halfSpan, midZ + halfSpan]
-            };
-
-            const centerTrace = { x:[0], y:[0], z:[0], mode:'markers', type:'scatter3d', name:centerName, marker:{size:8, color:'#fff'} };
-
-            Plotly.newPlot('plot', [centerTrace, ...traces], {
+            Plotly.newPlot('plot', traces, {
                 paper_bgcolor: 'rgba(0,0,0,0)', margin: {l:0, r:0, b:0, t:0},
                 scene: {
                     aspectmode: 'cube',
-                    xaxis: { range: axisRange.x, title: 'X (km)', gridcolor: '#1a1a1a' },
-                    yaxis: { range: axisRange.y, title: 'Y (km)', gridcolor: '#1a1a1a' },
-                    zaxis: { range: axisRange.z, title: 'Z (km)', gridcolor: '#1a1a1a' }
+                    xaxis: { range: [midX - halfSpan, midX + halfSpan], title: 'X (km)', gridcolor: '#1a1a1a' },
+                    yaxis: { range: [midY - halfSpan, midY + halfSpan], title: 'Y (km)', gridcolor: '#1a1a1a' },
+                    zaxis: { range: [midZ - halfSpan, midZ + halfSpan], title: 'Z (km)', gridcolor: '#1a1a1a' }
                 },
                 legend: { font: { color: 'white' }, x: 0.1, y: 0.9 },
                 uirevision: 'true'
