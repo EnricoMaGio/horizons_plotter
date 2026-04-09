@@ -17,8 +17,9 @@
     <h2>JPL Horizons 3D Orbit Plotter</h2>
     
     <div class="controls">
-        <input type="text" id="objId" value="-144" placeholder="Object ID (e.g. -144)">
-        <input type="date" id="startDate" value="2020-02-10">
+        <input type="text" id="objId" value="-144" placeholder="Target ID (e.g. -144)">
+        <input type="text" id="centerId" value="sun" placeholder="Center ID (e.g. sun)">
+        <input type="date" id="startDate" value="2020-02-12">
         <input type="date" id="endDate" value="2021-02-10">
         <button onclick="fetchAndPlot()">Plot Trajectory</button>
     </div>
@@ -28,12 +29,13 @@
     <script>
 async function fetchAndPlot() {
     const id = document.getElementById('objId').value;
+    const centerId = document.getElementById('centerId').value;
     const start = document.getElementById('startDate').value;
     const end = document.getElementById('endDate').value;
     
     // 1. Dynamically build the URL based on user input
     // Added 'CSV=YES' to make parsing easier
-    const nasaUrl = `https://ssd.jpl.nasa.gov/api/horizons.api?format=json&COMMAND='${id}'&OBJ_DATA='NO'&MAKE_EPHEM='YES'&EPHEM_TYPE='VECTORS'&CENTER='500@10'&START_TIME='${start}'&STOP_TIME='${end}'&STEP_SIZE='1d'&CSV_FORMAT='YES'&VEC_TABLE='1'`;
+    const nasaUrl = `https://ssd.jpl.nasa.gov/api/horizons.api?format=json&COMMAND='${id}'&OBJ_DATA='NO'&MAKE_EPHEM='YES'&EPHEM_TYPE='VECTORS'&CENTER='500@${centerId}'&START_TIME='${start}'&STOP_TIME='${end}'&STEP_SIZE='1d'&CSV_FORMAT='YES'&VEC_TABLE='1'`;
 
     const proxyUrl = "https://corsproxy.io/?" + encodeURIComponent(nasaUrl);
 
@@ -86,14 +88,6 @@ async function fetchAndPlot() {
                 name: `Object ${id}`
             };
 
-            // Add the Sun at (0,0,0)
-            const sun = {
-                x: [0], y: [0], z: [0],
-                mode: 'markers',
-                type: 'scatter3d',
-                marker: { size: 10, color: 'yellow' },
-                name: 'Sun'
-            };
 
             const layout = {
                 paper_bgcolor: '#050505', margin: {l:0, r:0, b:0, t:0},
@@ -107,7 +101,7 @@ async function fetchAndPlot() {
                 legend: { font: { color: 'white' } }
             };
 
-            Plotly.newPlot('plot', [trace, sun], layout);
+            Plotly.newPlot('plot', trace, layout);
         }
 
         // Run once on load
