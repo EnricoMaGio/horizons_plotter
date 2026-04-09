@@ -101,7 +101,7 @@ async function fetchAndPlot() {
                 legend: { font: { color: 'white' } }
             };
 
-            Plotly.newPlot('plot', trace, layout);
+            Plotly.newPlot('plot', [trace], layout);
         }
 
         // Run once on load
