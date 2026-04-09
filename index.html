@@ -101,6 +101,13 @@ button.primary-btn { width: 100%; background: linear-gradient(135deg, #00d2ff 0%
     #status { top: 10px; right: 10px; }
     .info-banner-container { display: none; } /* Hide notes on mobile to save space */
 }
+
+#status.processing {
+    border-color: #ffaa00;
+    color: #ffaa00;
+    animation: blink 1.5s infinite;
+}
+@keyframes blink { 0% { opacity: 1; } 50% { opacity: 0.5; } 100% { opacity: 1; } }
     </style>
 </head>
 <body>
@@ -241,7 +248,14 @@ button.primary-btn { width: 100%; background: linear-gradient(135deg, #00d2ff 0%
         }
 
 
+let currentAbortController = null; // Prevents overlapping requests
+
 async function fetchAndPlot() {
+    // 1. Cancel any existing request to avoid mobile network collisions
+    if (currentAbortController) { currentAbortController.abort(); }
+    currentAbortController = new AbortController();
+    const signal = currentAbortController.signal;
+
     const statusEl = document.getElementById('status');
     const centerInput = document.getElementById('centId').value;
     const isRelative = document.getElementById('relativeToggle').checked;
@@ -250,9 +264,10 @@ async function fetchAndPlot() {
 
     if (targets.length === 0) { alert("Add at least one target."); return; }
 
+    statusEl.classList.add('processing');
     let rawDataSets = [];
     let attempts = 0;
-    const maxAttempts = 3; 
+    const maxAttempts = 4; 
 
     while (attempts < maxAttempts) {
         let currentStartStr = document.getElementById('startDate').value.trim();
@@ -268,14 +283,15 @@ async function fetchAndPlot() {
                 
                 let data;
                 try {
-                    // TRY PROXY 1 (corsproxy.io)
-                    const res = await fetch("https://corsproxy.io/?" + encodeURIComponent(nasaUrl));
-                    if (!res.ok) throw new Error();
+                    // PRIMARY PROXY
+                    const res = await fetch("https://corsproxy.io/?" + encodeURIComponent(nasaUrl), { signal });
                     data = await res.json();
                 } catch (e) {
-                    // FALLBACK TO PROXY 2 (allorigins) - Often more reliable on mobile
-                    statusEl.innerText = "PROXY FAIL - RETRYING...";
-                    const res = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(nasaUrl)}`);
+                    if (e.name === 'AbortError') return; // User started a new fetch
+                    
+                    // BACKUP PROXY (allorigins) - Often bypasses mobile carrier blocks
+                    statusEl.innerText = "RETRIEVING VIA BACKUP...";
+                    const res = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(nasaUrl)}`, { signal });
                     const jsonWrap = await res.json();
                     data = JSON.parse(jsonWrap.contents);
                 }
@@ -307,8 +323,11 @@ async function fetchAndPlot() {
                         }
                         document.getElementById('endDate').value = limitEnd.toISOString().split('T')[0] + " " + limitEnd.toTimeString().split(' ')[0];
                     }
+
                     dateChangedInThisLoop = true;
-                    await new Promise(r => setTimeout(r, 150));
+                    statusEl.innerText = "SYNCING DATES...";
+                    // CRITICAL: Wait for mobile UI to update and proxy to cool down
+                    await new Promise(resolve => setTimeout(resolve, 300));
                     break; 
                 }
 
@@ -319,6 +338,7 @@ async function fetchAndPlot() {
                     return;
                 }
 
+                // Parsing code remains same
                 const x = [], y = [], z = [], d = [];
                 let inData = false;
                 data.result.split('\n').forEach(line => {
@@ -334,16 +354,20 @@ async function fetchAndPlot() {
                 });
                 rawDataSets.push({ name: parseBodyName(data.result, "Target body name") || targets[i], x, y, z, d });
             }
+
             if (!dateChangedInThisLoop) break; 
             attempts++;
+
         } catch (err) { 
-            statusEl.innerText = "CONNECTION ERROR"; 
+            if (err.name === 'AbortError') return;
+            statusEl.innerText = "NETWORK ERROR"; 
+            statusEl.classList.remove('processing');
             console.error(err);
             return;
         }
     }
 
-    // Final Rendering
+    // Process and Plot
     let processedTraces = [];
     if (isRelative && rawDataSets.length > 0) {
         const ref = rawDataSets[0];
@@ -360,7 +384,9 @@ async function fetchAndPlot() {
     }
     renderPlot(processedTraces, centerInput, isRelative);
     statusEl.innerText = `ACTIVE BODIES: ${targets.length}`;
+    statusEl.classList.remove('processing');
 }
+
         function createTrace(x, y, z, d, name, color) {
             return {
                 line: {
