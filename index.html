@@ -1,283 +1,220 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>JPL Horizons 3D Plotter</title>
     <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
     <style>
-        :root {
-            --bg-color: #0b0e14;
-            --panel-color: #161b22;
-            --accent-color: #00d2ff;
-            --accent-hover: #0099ff;
-            --text-main: #e6edf3;
-            --text-muted: #8b949e;
-            --border-color: #30363d;
-        }
+        body { font-family: sans-serif; margin: 20px; background: #1a1a1a; color: white; }
+        .controls { display: flex; gap: 10px; margin-bottom: 20px; flex-wrap: wrap; background: #333; padding: 15px; border-radius: 8px; }
+        input, button { padding: 8px; border-radius: 4px; border: none; }
+        button { background: #007bff; color: white; cursor: pointer; font-weight: bold; }
+        button:hover { background: #0056b3; }
+        #plot { width: 100%; height: 80vh; background: #000; }
 
-        body, html { 
-            height: 100%;
-            margin: 0;
-            overflow: hidden;
+        /* Selection Overlay Styles */
+        #selectionOverlay {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.85);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
         }
-
-        body { 
-            font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; 
-            background: var(--bg-color); 
-            color: var(--text-main);
-            display: flex;
-        }
-
-        .sidebar {
-            width: 320px;
-            min-width: 320px; /* Prevent sidebar from squishing */
-            background: var(--panel-color);
-            border-right: 1px solid var(--border-color);
-            padding: 24px;
-            display: flex;
-            flex-direction: column;
-            gap: 18px;
+        .selection-box {
+            background: #222;
+            padding: 25px;
+            border-radius: 12px;
+            max-width: 500px;
+            width: 90%;
+            max-height: 80vh;
             overflow-y: auto;
-            box-shadow: 4px 0 10px rgba(0,0,0,0.3);
-            z-index: 10;
+            border: 1px solid #444;
         }
-
-        h2 { 
-            font-size: 1.1rem; 
-            margin-top: 0; 
-            color: var(--accent-color);
-            letter-spacing: 1px;
-            text-transform: uppercase;
-            border-bottom: 1px solid var(--border-color);
-            padding-bottom: 15px;
+        .object-item {
+            display: block;
+            width: 100%;
+            text-align: left;
+            padding: 10px;
+            margin: 5px 0;
+            background: #333;
+            color: #00f2ff;
+            border: 1px solid #444;
+            cursor: pointer;
+            border-radius: 4px;
         }
-
-        .input-group {
-            display: flex;
-            flex-direction: column;
-            gap: 5px;
-        }
-
-        .input-group label {
-            font-size: 0.85rem;
-            font-weight: 600;
-            color: var(--text-main);
-        }
-
-        .input-group span {
-            font-size: 0.72rem;
-            color: var(--text-muted);
-            line-height: 1.2;
-        }
-
-        input, select { 
-            padding: 10px; 
-            background: #0d1117;
-            border: 1px solid var(--border-color);
-            border-radius: 6px;
-            color: white;
-            font-size: 0.9rem;
-        }
-
-        button { 
-            background: var(--accent-color); 
-            color: #000; 
-            padding: 12px;
-            border-radius: 6px; 
-            border: none;
-            cursor: pointer; 
-            font-weight: bold; 
-            margin-top: 10px;
-        }
-
-        button:hover { background: var(--accent-hover); }
-
-        /* FIX: Main content needs min-width/height 0 to allow shrinking in Flexbox */
-        .main-content {
-            flex-grow: 1;
-            position: relative;
-            background: #000;
-            min-width: 0; 
-            min-height: 0;
-            display: flex;
-        }
-
-        #plot { 
-            flex: 1;
-            width: 100%; 
-            height: 100%; 
-        }
-
-        #status {
-            position: absolute;
-            top: 20px;
-            right: 20px;
-            padding: 8px 15px;
-            background: rgba(0,0,0,0.6);
-            border-radius: 20px;
-            font-size: 0.8rem;
-            border: 1px solid var(--border-color);
-            color: var(--accent-color);
-            z-index: 100;
-        }
+        .object-item:hover { background: #444; }
+        .close-btn { background: #cc0000; margin-top: 15px; width: 100%; }
     </style>
 </head>
 <body>
 
-    <div class="sidebar">
-        <h2>Horizons 3D</h2>
-        
-        <div class="input-group">
-            <label for="objId">Target Object ID</label>
-            <span>JPL Command ID (e.g., -144 or 499).</span>
-            <input type="text" id="objId" value="-144">
-        </div>
-
-        <div class="input-group">
-            <label for="centId">Coordinate Center</label>
-            <span>Origin point (e.g., 'sun' or 'earth').</span>
-            <input type="text" id="centId" value="sun">
-        </div>
-
-        <div class="input-group">
-            <label for="refPlane">Reference Plane</label>
-            <span>The fundamental plane of the coordinate system.</span>
-            <select id="refPlane">
-                <option value="ECLIPTIC" selected>Ecliptic (Earth Orbit Plane)</option>
-                <option value="FRAME">Frame (Earth Equator)</option>
-                <option value="BODY EQUATOR">Body Equator (Target Center)</option>
-            </select>
-        </div>
-
-        <div class="input-group">
-            <label for="startDate">Start Date & Time</label>
-            <span>Format: YYYY-MM-DD HH:MM:SS.SSSS</span>
-            <input type="text" id="startDate" value="2020-02-12 00:00:00.0000">
-        </div>
-
-        <div class="input-group">
-            <label for="endDate">End Date & Time</label>
-            <span>Format: YYYY-MM-DD HH:MM:SS.SSSS</span>
-            <input type="text" id="endDate" value="2021-02-10 00:00:00.0000">
-        </div>
-
-        <div class="input-group">
-            <label for="stepsize">Step Size</label>
-            <span>Interval (e.g., '1 DAYS', '30 MINUTES').</span>
-            <input type="text" id="stepsize" value="1 DAYS">
-        </div>
-
-        <button onclick="fetchAndPlot()">Generate Trajectory</button>
-        
-        <div style="margin-top: auto; font-size: 0.7rem; color: var(--text-muted);">
-            NASA JPL Horizons System
-        </div>
+    <h2>JPL Horizons 3D Orbit Plotter</h2>
+    
+    <div class="controls">
+        <input type="text" id="objId" value="-144" placeholder="Target ID (e.g. -144)">
+        <input type="text" id="centId" value="sun" placeholder="Center ID (e.g. sun)">
+        <input type="date" id="startDate" value="2020-02-12">
+        <input type="date" id="endDate" value="2021-02-10">
+        <input type="text" id="stepsize" value="1 DAYS" placeholder="Stepsize">
+        <button onclick="fetchAndPlot()">Plot Trajectory</button>
     </div>
 
-    <div class="main-content">
-        <div id="status">System Ready</div>
-        <div id="plot"></div>
+    <div id="plot"></div>
+
+    <div id="selectionOverlay">
+        <div class="selection-box">
+            <h3>Multiple Matches Found</h3>
+            <p>Select the exact object you wish to plot:</p>
+            <div id="objectList"></div>
+            <button class="close-btn" onclick="document.getElementById('selectionOverlay').style.display='none'">Cancel</button>
+        </div>
     </div>
 
     <script>
-        const plotDiv = document.getElementById('plot');
+async function fetchAndPlot(forcedId = null) {
+    // If we passed a forcedId from the selection list, use that; otherwise use the input value
+    const id = forcedId || document.getElementById('objId').value;
+    const centerId = document.getElementById('centId').value;
+    const start = document.getElementById('startDate').value;
+    const end = document.getElementById('endDate').value;
+    const step = document.getElementById('stepsize').value;
 
-        // Automatic Resizer
-        window.addEventListener('resize', () => {
-            Plotly.Plots.resize(plotDiv);
-        });
+    const nasaUrl = `https://ssd.jpl.nasa.gov/api/horizons.api?format=json&COMMAND='${id}'&OBJ_DATA='NO'&MAKE_EPHEM='YES'&EPHEM_TYPE='VECTORS'&CENTER='500@${centerId}'&START_TIME='${start} UTC'&STOP_TIME='${end}'&STEP_SIZE='${step}'&CSV_FORMAT='YES'&VEC_TABLE='1'`;
+    const proxyUrl = "https://corsproxy.io/?" + encodeURIComponent(nasaUrl);
 
-        async function fetchAndPlot() {
-            const statusEl = document.getElementById('status');
-            statusEl.innerText = "Fetching Data...";
-            
-            const id = document.getElementById('objId').value;
-            const centerId = document.getElementById('centId').value;
-            const start = document.getElementById('startDate').value;
-            const end = document.getElementById('endDate').value;
-            const step = document.getElementById('stepsize').value;
-            const refPlane = document.getElementById('refPlane').value;
+    try {
+        const response = await fetch(proxyUrl);
+        if (!response.ok) throw new Error(`Server responded with ${response.status}`);
+        
+        const data = await response.json();
 
-            const nasaUrl = `https://ssd.jpl.nasa.gov/api/horizons.api?format=json&COMMAND='${id}'&OBJ_DATA='NO'&MAKE_EPHEM='YES'&EPHEM_TYPE='VECTORS'&CENTER='500@${centerId}'&REF_PLANE='${refPlane}'&START_TIME='${start}'&STOP_TIME='${end}'&STEP_SIZE='${step}'&CSV_FORMAT='YES'&VEC_TABLE='1'`;
-            const proxyUrl = "https://corsproxy.io/?" + encodeURIComponent(nasaUrl);
-
-            try {
-                const response = await fetch(proxyUrl);
-                const data = await response.json();
-
-                const x = [], y = [], z = [], dates = [];
-                let displayName = `Object ${id}`; 
-                let nameMatch = data.result.match(/Target body name:\s+([^({\n]+)/);
-                if (nameMatch && nameMatch[1]) displayName = nameMatch[1].trim();
-
-                let centerName = `Object ${centerId}`; 
-                nameMatch = data.result.match(/Center body name:\s+([^({\n]+)/);
-                if (nameMatch && nameMatch[1]) centerName = nameMatch[1].trim();
-
-                const lines = data.result.split('\n');
-                let inData = false;
-                for (let line of lines) {
-                    if (line.includes('$$SOE')) { inData = true; continue; }
-                    if (line.includes('$$EOE')) { inData = false; continue; }
-                    if (inData) {
-                        const cols = line.split(',');
-                        if (cols.length >= 4) {
-                            dates.push(cols[1].trim()); 
-                            x.push(parseFloat(cols[2]));
-                            y.push(parseFloat(cols[3]));
-                            z.push(parseFloat(cols[4]));
-                        }
-                    }
-                }
-
-                plotData(x, y, z, dates, displayName, centerName);
-                statusEl.innerText = `Viewing: ${displayName}`;
-            } catch (err) {
-                statusEl.innerText = "Error Loading Data";
-            }
-        }    
-
-        function plotData(x, y, z, dates, displayName, centerName) {
-            const trace = {
-                x: x, y: y, z: z,
-                mode: 'lines',
-                type: 'scatter3d',
-                text: dates,
-                line: { width: 4, color: '#00d2ff' },
-                name: displayName
-            };
-
-            const center = {
-                x: [0], y: [0], z: [0],
-                mode: 'markers',
-                type: 'scatter3d',
-                marker: { size: 6, color: '#ffffff', symbol: 'diamond' },
-                name: centerName
-            };
-
-            const layout = {
-                paper_bgcolor: 'rgba(0,0,0,0)',
-                margin: {l:0, r:0, b:0, t:0},
-                uirevision: 'constant',
-                autosize: true, // Forces initial fit
-                scene: {
-                    xaxis: { showgrid: true, gridcolor: '#222', color: '#888', title: 'X (km)' },
-                    yaxis: { showgrid: true, gridcolor: '#222', color: '#888', title: 'Y (km)' },
-                    zaxis: { showgrid: true, gridcolor: '#222', color: '#888', title: 'Z (km)' },
-                    aspectmode: 'data'
-                },
-                legend: { font: { color: 'white' }, x: 0.05, y: 0.95 },
-                showlegend: true
-            };
-
-            // Added CONFIG object for built-in responsiveness
-            const config = { responsive: true };
-
-            Plotly.newPlot('plot', [center, trace], layout, config);
+        // 1. IMPROVED AMBIGUOUS HANDLING
+        if (data.result && data.result.includes("Number of matches")) {
+            showObjectSelection(data.result);
+            return;
         }
 
-        fetchAndPlot();
+        if (!data.result || data.result.includes("No object found")) {
+            throw new Error("NASA could not find that object.");
+        }
+
+        const x = [], y = [], z = [], dates = [];
+
+        let displayName = `Object ${id}`; 
+        let nameMatch = data.result.match(/Target body name:\s+([^({\n]+)/);
+        if (nameMatch && nameMatch[1]) {
+            displayName = nameMatch[1].trim();
+        }
+
+        let centerName = `Object ${centerId}`; 
+        nameMatch = data.result.match(/Center body name:\s+([^({\n]+)/);
+        if (nameMatch && nameMatch[1]) {
+            centerName = nameMatch[1].trim();
+        }
+
+        const lines = data.result.split('\n');
+        let inData = false;
+
+        for (let line of lines) {
+            if (line.includes('$$SOE')) { inData = true; continue; }
+            if (line.includes('$$EOE')) { inData = false; continue; }
+            
+            if (inData) {
+                const cols = line.split(',');
+                if (cols.length >= 4) {
+                    dates.push(cols[1].trim()); 
+                    x.push(parseFloat(cols[2]));
+                    y.push(parseFloat(cols[3]));
+                    z.push(parseFloat(cols[4]));
+                }
+            }
+        }
+
+        if (x.length === 0) {
+            alert("No data points found. Check if the Object ID is correct.");
+        }
+
+        plotData(x, y, z, dates, displayName, centerName);
+    } catch (err) {
+        console.error(err);
+        alert("Error: " + err.message);
+    }
+}
+
+// Function to parse the NASA "Ambiguous Search" text and show the buttons
+function showObjectSelection(resultText) {
+    const listDiv = document.getElementById('objectList');
+    listDiv.innerHTML = ""; // Clear old list
+    
+    // Look for lines that contain an ID followed by the object name (typical NASA formatting)
+    // Matches patterns like "  499  Mars"
+    const lines = resultText.split('\n');
+    const matches = [];
+
+    lines.forEach(line => {
+        const match = line.match(/^\s*(-?\d+)\s+(.+)$/);
+        if (match) {
+            matches.push({ id: match[1], name: match[2].trim() });
+        }
+    });
+
+    if (matches.length === 0) {
+        alert("Multiple matches found, but they couldn't be parsed automatically. Try entering the exact ID.");
+        return;
+    }
+
+    matches.forEach(item => {
+        const btn = document.createElement('button');
+        btn.className = "object-item";
+        btn.innerText = `[ID: ${item.id}] ${item.name}`;
+        btn.onclick = () => {
+            document.getElementById('selectionOverlay').style.display = 'none';
+            document.getElementById('objId').value = item.id; // Update input field
+            fetchAndPlot(item.id); // Plot the specific selection
+        };
+        listDiv.appendChild(btn);
+    });
+
+    document.getElementById('selectionOverlay').style.display = 'flex';
+}
+
+function plotData(x, y, z, dates, displayName, centerName) {
+    const trace = {
+        x: x, y: y, z: z,
+        mode: 'lines',
+        type: 'scatter3d',
+        text: dates,
+        line: { width: 4, color: '#00f2ff' },
+        name: displayName
+    };
+
+    const center = {
+        x: [0], y: [0], z: [0],
+        mode: 'markers',
+        type: 'scatter3d',
+        marker: { size: 4, color: 'white' },
+        name: centerName
+    };
+
+    const layout = {
+        paper_bgcolor: '#050505', 
+        margin: {l:0, r:0, b:0, t:0},
+        uirevision: 'constant',
+        scene: {
+            xaxis: { showgrid: true, gridcolor: '#111', color: '#444', title: 'X [km]' },
+            yaxis: { showgrid: true, gridcolor: '#111', color: '#444', title: 'Y [km]' },
+            zaxis: { showgrid: true, gridcolor: '#111', color: '#444', title: 'Z [km]' },
+            aspectmode: 'data'
+        },
+        legend: { font: { color: 'white' } },
+        showlegend: true
+    };
+
+    Plotly.newPlot('plot', [center, trace], layout);
+}
+
+fetchAndPlot();
     </script>
 </body>
 </html>
