@@ -26,31 +26,30 @@
     <div id="plot"></div>
 
     <script>
-       async function fetchAndPlot() {
+async function fetchAndPlot() {
     const id = document.getElementById('objId').value;
     const start = document.getElementById('startDate').value;
     const end = document.getElementById('endDate').value;
     
-    // AllOrigins is generally more stable for local files
+    // 1. Define the NASA URL
     const baseUrl = "https://ssd-api.jpl.nasa.gov/horizons.api";
     const params = `?format=json&COMMAND='${id}'&OBJ_DATA='NO'&MAKE_EPHEM='YES'&EPHEM_TYPE='VECTORS'&CENTER='@sun'&START_TIME='${start}'&STOP_TIME='${end}'&STEP_SIZE='1d'&OUT_UNITS='AU'`;
-    
-    // This format works better for AllOrigins
-    const finalUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(baseUrl + params)}`;
+    const fullNasaUrl = baseUrl + params;
+
+    // 2. Wrap it in the AllOrigins Proxy URL
+    const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(fullNasaUrl)}`;
 
     try {
-        const response = await fetch(finalUrl);
-        if (!response.ok) throw new Error("Network response was not ok");
+        const response = await fetch(proxyUrl);
+        if (!response.ok) throw new Error("Proxy server error");
         
+        // 3. AllOrigins returns a JSON object. The NASA data is inside 'contents'
         const wrapper = await response.json();
-        // AllOrigins wraps the result in a 'contents' string
-        const data = JSON.parse(wrapper.contents);
+        const data = JSON.parse(wrapper.contents); 
         
-        if (!data.result) {
-            console.log("NASA Error Message:", data);
-            throw new Error("NASA didn't return data. Check console for details.");
-        }
+        if (!data.result) throw new Error("NASA returned no data for this ID/Date.");
 
+        // --- Parsing Logic ---
         const lines = data.result.split('\n');
         let inData = false;
         const x = [], y = [], z = [], dates = [];
@@ -71,10 +70,11 @@
 
         plotData(x, y, z, dates, id);
     } catch (err) {
-        console.error("Detailed Error:", err);
-        alert("Failed to get data. This is usually a browser security block. Try disabling ad-blockers or running through a local server.");
+        console.error(err);
+        alert("CORS Error Workaround Failed: " + err.message);
     }
 }
+    
         function plotData(x, y, z, dates, id) {
             const trace = {
                 x: x, y: y, z: z,
