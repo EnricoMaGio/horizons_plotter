@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Horizons 3D | Multi-Target Tracker</title>
+    <title>Horizons 3D | Fixed Aspect Tracker</title>
     <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet">
     <style>
@@ -47,7 +47,7 @@
             color: #fff; font-size: 0.8rem; font-family: 'JetBrains Mono', monospace;
         }
 
-        /* Tag System */
+        /* Tag UI */
         .tag-input-container { display: flex; gap: 5px; }
         .tag-input-container input { flex: 1; }
         .add-tag-btn { background: #30363d; border: none; color: white; border-radius: 6px; padding: 0 12px; cursor: pointer; }
@@ -57,7 +57,7 @@
             padding: 4px 8px; border-radius: 4px; font-size: 0.7rem; 
             display: flex; align-items: center; gap: 5px; color: var(--accent);
         }
-        .tag span { cursor: pointer; font-weight: bold; color: #ff4a4a; }
+        .tag span { cursor: pointer; font-weight: bold; color: #ff4a4a; margin-left: 4px; }
 
         .button-container {
             padding: 20px 25px 25px 25px; border-top: 1px solid var(--border);
@@ -81,6 +81,8 @@
 
         #selectionOverlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.9); z-index: 2000; justify-content: center; align-items: center; }
         .selection-box { background: #161b22; padding: 30px; border-radius: 12px; width: 500px; max-height: 80vh; overflow-y: auto; border: 1px solid var(--border); }
+        .object-item { display: block; width: 100%; text-align: left; padding: 12px; margin: 8px 0; background: #0d1117; color: var(--text-main); border: 1px solid var(--border); cursor: pointer; border-radius: 6px; font-family: 'JetBrains Mono'; }
+        .object-item:hover { border-color: var(--accent); color: var(--accent); }
     </style>
 </head>
 <body>
@@ -92,7 +94,7 @@
             <div class="scroll-area">
                 <div class="input-group">
                     <label>Target Objects</label>
-                    <span>Add multiple objects (e.g. 'Mars', 'Voyager 1').</span>
+                    <span>Track multiple bodies simultaneously.</span>
                     <div class="tag-input-container">
                         <input type="text" id="tagInput" placeholder="Add target...">
                         <button class="add-tag-btn" onclick="addTag()">+</button>
@@ -119,12 +121,12 @@
                 <div class="input-group">
                     <label for="startDate">Start Date/Time</label>
                     <span>UTC (YYYY-MM-DD HH:MM:SS).</span>
-                    <input type="text" id="startDate" value="2020-02-13 00:00:00">
+                    <input type="text" id="startDate" value="2020-02-10 00:00:00">
                 </div>
 
                 <div class="input-group">
                     <label for="endDate">End Date/Time</label>
-                    <span>End time for trajectory.</span>
+                    <span>Ending time for trajectory.</span>
                     <input type="text" id="endDate" value="2021-02-10 00:00:00">
                 </div>
 
@@ -155,16 +157,16 @@
 
     <div id="selectionOverlay">
         <div class="selection-box">
-            <h3 id="selectionTitle" style="color: var(--accent); margin-top:0;">Ambiguity Detected</h3>
-            <p id="selectionText" style="color: var(--text-dim); font-size: 0.8rem;"></p>
+            <h3 id="selectionTitle" style="color: var(--accent); margin-top:0;">Resolve Ambiguity</h3>
+            <p id="selectionText" style="color: var(--text-dim); font-size: 0.85rem; margin-bottom: 20px;"></p>
             <div id="objectList"></div>
-            <button onclick="document.getElementById('selectionOverlay').style.display='none'" class="add-tag-btn" style="width:100%; margin-top:10px; padding:10px;">Cancel</button>
+            <button onclick="document.getElementById('selectionOverlay').style.display='none'" class="object-item" style="background: #30363d; text-align: center;">Cancel</button>
         </div>
     </div>
 
     <script>
         let targets = ["Solar Orbiter"];
-        const palette = ['#00d2ff', '#ff00ff', '#00ffaa', '#ffaa00', '#7000ff', '#ffffff'];
+        const palette = ['#00d2ff', '#ff00ff', '#00ffaa', '#ffaa00', '#7000ff', '#ffffff', '#ff4d4d'];
 
         function renderTags() {
             const list = document.getElementById('tagList');
@@ -193,13 +195,13 @@
             const step = `${document.getElementById('stepVal').value} ${document.getElementById('stepUnit').value}`;
             const cleanRefPlane = document.getElementById('refPlane').value.charAt(0);
             
-            if (targets.length === 0) { alert("Please add at least one target."); return; }
+            if (targets.length === 0) { alert("Add at least one target."); return; }
 
-            statusEl.innerText = "INITIALIZING COMMS...";
+            statusEl.innerText = "LINKING TO NASA...";
             let traces = [];
 
             try {
-                // Check Center Body Ambiguity
+                // Check Center Body
                 const cCheckUrl = `https://ssd.jpl.nasa.gov/api/horizons.api?format=json&COMMAND='${encodeURIComponent(centerInput)}'`;
                 const cRes = await fetch("https://corsproxy.io/?" + encodeURIComponent(cCheckUrl));
                 const cData = await cRes.json();
@@ -212,17 +214,14 @@
                 }
 
                 for (let i = 0; i < targets.length; i++) {
-                    statusEl.innerText = `FETCHING ${i+1}/${targets.length}: ${targets[i]}...`;
-                    
+                    statusEl.innerText = `FETCHING ${i+1}/${targets.length}...`;
                     const nasaUrl = `https://ssd.jpl.nasa.gov/api/horizons.api?format=json&COMMAND='${encodeURIComponent(targets[i])}'&OBJ_DATA='NO'&MAKE_EPHEM='YES'&EPHEM_TYPE='VECTORS'&CENTER='@${centerInput}'&START_TIME='${start} UTC'&STOP_TIME='${end}'&STEP_SIZE='${step}'&CSV_FORMAT='YES'&VEC_TABLE='1'&REF_PLANE='${cleanRefPlane}'`;
                     const res = await fetch("https://corsproxy.io/?" + encodeURIComponent(nasaUrl));
                     const data = await res.json();
 
                     if (data.result.includes("Number of matches")) {
                         showSelection(data.result, i, `Resolve "${targets[i]}"`, (id, idx) => {
-                            targets[idx] = id;
-                            renderTags();
-                            fetchAndPlot();
+                            targets[idx] = id; renderTags(); fetchAndPlot();
                         });
                         return;
                     }
@@ -238,18 +237,14 @@
                         }
                     });
 
-                    let tName = targets[i];
-                    const match = data.result.match(/Target body name:\s+([^({\n]+)/);
-                    if (match) tName = match[1].trim();
-
                     traces.push({
                         x: x, y: y, z: z, text: d, mode: 'lines', type: 'scatter3d',
-                        name: tName, line: { width: 4, color: palette[i % palette.length] }
+                        name: targets[i], line: { width: 4, color: palette[i % palette.length] }
                     });
                 }
 
                 renderPlot(traces, centerInput);
-                statusEl.innerText = `TRACKING ${targets.length} OBJECTS`;
+                statusEl.innerText = `ACTIVE TRACKING: ${targets.length}`;
             } catch (err) { statusEl.innerText = "ERROR"; alert(err.message); }
         }
 
@@ -263,10 +258,7 @@
                     const btn = document.createElement('button');
                     btn.className = "object-item";
                     btn.innerText = `ID: ${m[1]} — ${m[2].trim()}`;
-                    btn.onclick = () => {
-                        document.getElementById('selectionOverlay').style.display = 'none';
-                        callback(m[1], targetIdx);
-                    };
+                    btn.onclick = () => { document.getElementById('selectionOverlay').style.display = 'none'; callback(m[1], targetIdx); };
                     list.appendChild(btn);
                 }
             });
@@ -274,14 +266,39 @@
         }
 
         function renderPlot(traces, centerName) {
+            // FORCE AXES EQUALS LOGIC
+            // 1. Get all points from all traces
+            const allX = [], allY = [], allZ = [];
+            traces.forEach(t => { allX.push(...t.x); allY.push(...t.y); allZ.push(...t.z); });
+            allX.push(0); allY.push(0); allZ.push(0); // Include origin
+
+            // 2. Find the center and the range of data
+            const minX = Math.min(...allX), maxX = Math.max(...allX);
+            const minY = Math.min(...allY), maxY = Math.max(...allY);
+            const minZ = Math.min(...allZ), maxZ = Math.max(...allZ);
+            
+            const midX = (maxX + minX) / 2, midY = (maxY + minY) / 2, midZ = (maxZ + minZ) / 2;
+            
+            // 3. Find the maximum span across any single dimension
+            const maxSpan = Math.max(maxX - minX, maxY - minY, maxZ - minZ);
+            const halfSpan = maxSpan / 2;
+
+            // 4. Set the same range for every axis
+            const axisRange = {
+                x: [midX - halfSpan, midX + halfSpan],
+                y: [midY - halfSpan, midY + halfSpan],
+                z: [midZ - halfSpan, midZ + halfSpan]
+            };
+
             const centerTrace = { x:[0], y:[0], z:[0], mode:'markers', type:'scatter3d', name:centerName, marker:{size:6, color:'#fff'} };
+
             Plotly.newPlot('plot', [centerTrace, ...traces], {
                 paper_bgcolor: 'rgba(0,0,0,0)', margin: {l:0, r:0, b:0, t:0},
                 scene: {
-                    aspectmode: 'cube',
-                    xaxis: { gridcolor: '#1a1a1a', title: 'X (km)' },
-                    yaxis: { gridcolor: '#1a1a1a', title: 'Y (km)' },
-                    zaxis: { gridcolor: '#1a1a1a', title: 'Z (km)' }
+                    aspectmode: 'cube', // Preserves cube shape
+                    xaxis: { range: axisRange.x, title: 'X (km)', gridcolor: '#1a1a1a' },
+                    yaxis: { range: axisRange.y, title: 'Y (km)', gridcolor: '#1a1a1a' },
+                    zaxis: { range: axisRange.z, title: 'Z (km)', gridcolor: '#1a1a1a' }
                 },
                 legend: { font: { color: 'white' }, x: 0.1, y: 0.9 },
                 uirevision: 'true'
