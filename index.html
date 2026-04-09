@@ -31,96 +31,97 @@ async function fetchAndPlot() {
     const start = document.getElementById('startDate').value;
     const end = document.getElementById('endDate').value;
     
-    // The NASA URL
-const nasaUrl = "https://ssd.jpl.nasa.gov/api/horizons.api?format=json&COMMAND='499'&OBJ_DATA='NO'&MAKE_EPHEM='YES'&EPHEM_TYPE='VECTORS'&CENTER='500@10'&START_TIME='2006-01-01'&STOP_TIME='2006-01-20'&STEP_SIZE='1d'";
+    // 1. Construct the URL based on the version you confirmed works
+    // Note: We use format=json so the script can read it easily
+    const nasaUrl = `https://ssd.jpl.nasa.gov/api/horizons.api?format=json&COMMAND='${id}'&OBJ_DATA='NO'&MAKE_EPHEM='YES'&EPHEM_TYPE='VECTORS'&CENTER='@10'&START_TIME='${start}'&STOP_TIME='${end}'&STEP_SIZE='1d'&OUT_UNITS='km'`;
 
-
-    // NEW PROXY: Use 'corsproxy.io' correctly or 'cors-anywhere'
-    // This proxy is specifically designed to work with GitHub Pages
-    const proxyUrl = "https://corsproxy.io/?" + encodeURIComponent(nasaUrl);
+    const proxyUrl = "https://api.allorigins.win/get?url=" + encodeURIComponent(nasaUrl);
 
     try {
         const response = await fetch(proxyUrl);
-        
-        if (!response.ok) throw new Error(`Server responded with ${response.status}`);
-        
-        const data = await response.json();
-        
-        if (!data.result) throw new Error("NASA returned no data.");
+        const wrapper = await response.json();
+        const data = JSON.parse(wrapper.contents);
 
-        // --- Parsing Logic ---
-       const lines = data.result.split('\n');
-let inData = false;
-const x = [], y = [], z = [];
+        if (!data.result) throw new Error("NASA Error: " + data.message);
 
-lines.forEach(line => {
-    // 1. Only look at lines between these markers
-    if (line.includes('$$SOE')) { inData = true; return; }
-    if (line.includes('$$EOE')) { inData = false; return; }
-    
-    if (inData) {
-        // 2. Clean the line: replace commas with spaces, then split by space
-        // This handles cases where JPL uses different delimiters
-        const parts = line.replace(/,/g, ' ').trim().split(/\s+/);
+        const lines = data.result.split('\n');
+        let inData = false;
         
-        // 3. In VECTORS mode, X, Y, Z are usually at index 2, 3, 4
-        // (Index 0 is Date, Index 1 is Time)
-        const xVal = parseFloat(parts[2]);
-        const yVal = parseFloat(parts[3]);
-        const zVal = parseFloat(parts[4]);
+        // --- INITIALIZE ALL ARRAYS HERE ---
+        const x = [];
+        const y = [];
+        const z = [];
+        const dates = []; // <--- THIS WAS MISSING OR SCOPED WRONGLY
 
-        if (!isNaN(xVal)) {
-            x.push(xVal);
-            y.push(yVal);
-            z.push(zVal);
+        lines.forEach(line => {
+            if (line.includes('$$SOE')) { inData = true; return; }
+            if (line.includes('$$EOE')) { inData = false; return; }
+            
+            if (inData) {
+                // JPL Vector data is comma-separated
+                const cols = line.split(',').map(s => s.trim());
+                
+                if (cols.length >= 5) {
+                    const xVal = parseFloat(cols[2]);
+                    const yVal = parseFloat(cols[3]);
+                    const zVal = parseFloat(cols[4]);
+
+                    if (!isNaN(xVal)) {
+                        dates.push(cols[1]); // Grabs the Date string
+                        x.push(xVal);
+                        y.push(yVal);
+                        z.push(zVal);
+                    }
+                }
+            }
+        });
+
+        if (x.length === 0) {
+            alert("No numeric data found. Check the console for the raw NASA response.");
+            console.log("Raw Result:", data.result);
+            return;
         }
-    }
-});
 
-console.log("Parsed Points:", x.length); // If this is 0, the loop didn't find the markers
-
-
+        // Pass the arrays to the plotting function
         plotData(x, y, z, dates, id);
+
     } catch (err) {
         console.error(err);
-        alert("CORS Error Workaround Failed: " + err.message);
+        alert("Error: " + err.message);
     }
 }
-    
-        function plotData(x, y, z, dates, id) {
-            const trace = {
-                x: x, y: y, z: z,
-                mode: 'lines',
-                type: 'scatter3d',
-                text: dates,
-                line: { width: 4, color: '#00f2ff' },
-                name: `Object ${id}`
-            };
 
-            // Add the Sun at (0,0,0)
-            const sun = {
-                x: [0], y: [0], z: [0],
-                mode: 'markers',
-                type: 'scatter3d',
-                marker: { size: 10, color: 'yellow' },
-                name: 'Sun'
-            };
+function plotData(x, y, z, dates, id) {
+    const trace = {
+        x: x, y: y, z: z,
+        mode: 'lines',
+        type: 'scatter3d',
+        text: dates, // Now 'dates' is defined and passed in!
+        line: { width: 4, color: '#00f2ff' },
+        name: `Object ${id}`
+    };
 
-            const layout = {
-                paper_bgcolor: '#1a1a1a',
-                plot_bgcolor: '#1a1a1a',
-                margin: { l:0, r:0, b:0, t:0 },
-                scene: {
-                    xaxis: { title: 'X (AU)', gridcolor: '#444' },
-                    yaxis: { title: 'Y (AU)', gridcolor: '#444' },
-                    zaxis: { title: 'Z (AU)', gridcolor: '#444' }
-                },
-                legend: { font: { color: 'white' } }
-            };
+    const sun = {
+        x: [0], y: [0], z: [0],
+        mode: 'markers',
+        type: 'scatter3d',
+        marker: { size: 10, color: 'yellow' },
+        name: 'Sun'
+    };
 
-            Plotly.newPlot('plot', [trace, sun], layout);
-        }
+    const layout = {
+        title: `Orbit of ${id}`,
+        scene: {
+            xaxis: { title: 'X (AU)' },
+            yaxis: { title: 'Y (AU)' },
+            zaxis: { title: 'Z (AU)' }
+        },
+        paper_bgcolor: '#1a1a1a',
+        font: { color: 'white' }
+    };
 
+    Plotly.newPlot('plot', [trace, sun], layout);
+}
         // Run once on load
         fetchAndPlot();
     </script>
