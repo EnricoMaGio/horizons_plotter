@@ -247,123 +247,120 @@ async function fetchAndPlot() {
     const step = `${document.getElementById('stepVal').value} ${document.getElementById('stepUnit').value}`;
     const cleanRefPlane = document.getElementById('refPlane').value.charAt(0);
 
-    let currentStartStr = document.getElementById('startDate').value.trim();
-    let currentEndStr = document.getElementById('endDate').value.trim();
-    
     if (targets.length === 0) { alert("Add at least one target."); return; }
 
-    statusEl.innerText = "LINKING TO NASA...";
     let rawDataSets = [];
+    let attempts = 0;
+    const maxAttempts = 5; 
 
-    try {
-        for (let i = 0; i < targets.length; i++) {
-            statusEl.innerText = `FETCHING ${i+1}/${targets.length}...`;
-            
-            const nasaUrl = `https://ssd.jpl.nasa.gov/api/horizons.api?format=json&COMMAND='${encodeURIComponent(targets[i])}'&OBJ_DATA='NO'&MAKE_EPHEM='YES'&EPHEM_TYPE='VECTORS'&CENTER='@${centerInput}'&START_TIME='${currentStartStr}'&STOP_TIME='${currentEndStr}'&STEP_SIZE='${step}'&CSV_FORMAT='YES'&VEC_TABLE='1'&REF_PLANE='${cleanRefPlane}'`;
-            
-            const res = await fetch("https://corsproxy.io/?" + encodeURIComponent(nasaUrl));
-            const data = await res.json();
+    // We use a loop here to handle automatic date adjustments without recursion
+    while (attempts < maxAttempts) {
+        let currentStartStr = document.getElementById('startDate').value.trim();
+        let currentEndStr = document.getElementById('endDate').value.trim();
+        let dateChangedInThisLoop = false;
+        rawDataSets = [];
 
-            // 1. Scrape error messages for limits
-            const priorMatch = data.result.match(/prior\s+(?:to\s+)?A\.D\.\s+([\d\- \w:]+\.\d+)/i);
-            const afterMatch = data.result.match(/after\s+A\.D\.\s+([\d\- \w:]+\.\d+)/i);
+        try {
+            for (let i = 0; i < targets.length; i++) {
+                statusEl.innerText = `FETCHING ${i + 1}/${targets.length}...`;
+                
+                const nasaUrl = `https://ssd.jpl.nasa.gov/api/horizons.api?format=json&COMMAND='${encodeURIComponent(targets[i])}'&OBJ_DATA='NO'&MAKE_EPHEM='YES'&EPHEM_TYPE='VECTORS'&CENTER='@${centerInput}'&START_TIME='${currentStartStr}'&STOP_TIME='${currentEndStr}'&STEP_SIZE='${step}'&CSV_FORMAT='YES'&VEC_TABLE='1'&REF_PLANE='${cleanRefPlane}'`;
+                
+                const res = await fetch("https://corsproxy.io/?" + encodeURIComponent(nasaUrl));
+                const data = await res.json();
 
-            if (priorMatch || afterMatch) {
-                let changed = false;
-                let userStart = new Date(currentStartStr);
-                let userEnd = new Date(currentEndStr);
+                // --- RESTORED DATE SETTING LOGIC ---
+                const priorMatch = data.result.match(/prior\s+(?:to\s+)?A\.D\.\s+([\d\- \w:]+\.\d+)/i);
+                const afterMatch = data.result.match(/after\s+A\.D\.\s+([\d\- \w:]+\.\d+)/i);
 
-                if (priorMatch) {
-                    let limitStart = new Date(priorMatch[1]);
-                    limitStart.setSeconds(limitStart.getSeconds() + 1); // 1s buffer
-                    
-                    // CASE: User's entire window is before the mission starts
-                    if (userEnd <= limitStart) {
-                        // Move End Date first to make room, then move Start Date
-                        let newEnd = new Date(newStart.getDate() + 1);
-                        newEnd.setDate(newEnd.getDate() + 1); // Default to 1 day span
-                        document.getElementById('endDate').value = newEnd.toISOString().split('T')[0] + " 00:00:00";
+                if (priorMatch || afterMatch) {
+                    let userStart = new Date(currentStartStr);
+                    let userEnd = new Date(currentEndStr);
+
+                    if (priorMatch) {
+                        let limitStart = new Date(priorMatch[1]);
+                        limitStart.setSeconds(limitStart.getSeconds() + 1);
+                        
+                        // If user's entire window is before mission start, shift the whole window
+                        if (userEnd <= limitStart) {
+                            let newEnd = new Date(limitStart);
+                            newEnd.setDate(newEnd.getDate() + 1);
+                            document.getElementById('endDate').value = newEnd.toISOString().split('T')[0] + " 00:00:00";
+                        }
+                        document.getElementById('startDate').value = limitStart.toISOString().split('T')[0] + " " + limitStart.toTimeString().split(' ')[0];
+                    } 
+                    else if (afterMatch) {
+                        let limitEnd = new Date(afterMatch[1]);
+                        limitEnd.setSeconds(limitEnd.getSeconds() - 1);
+
+                        // If user's entire window is after mission end, shift the whole window
+                        if (userStart >= limitEnd) {
+                            let newStart = new Date(limitEnd);
+                            newStart.setDate(newStart.getDate() - 1);
+                            document.getElementById('startDate').value = newStart.toISOString().split('T')[0] + " 00:00:01";
+                        }
+                        document.getElementById('endDate').value = limitEnd.toISOString().split('T')[0] + " " + limitEnd.toTimeString().split(' ')[0];
                     }
 
-                    const newStartStr = limitStart.toISOString().split('T')[0] + " " + limitStart.toTimeString().split(' ')[0];
-                    if (newStartStr !== currentStartStr) {
-                        document.getElementById('startDate').value = newStartStr;
-                        changed = true;
-                    }
-                } 
-                else if (afterMatch) {
-                    // NASA only shows 'after' if 'prior' was okay or not checked
-                    let limitEnd = new Date(afterMatch[1]);
-                    limitEnd.setSeconds(limitEnd.getSeconds() - 1); // 1s buffer
-
-                    // CASE: User's entire window is after the mission ended
-                    if (userStart >= limitEnd) {
-                        let newStart = new Date(limitEnd);
-                        newStart.setDate(newStart.getDate() - 1); // Default to 1 day span
-                        document.getElementById('startDate').value = newStart.toISOString().split('T')[0] + " 00:00:01";
-                    }
-
-                    const newEndStr = limitEnd.toISOString().split('T')[0] + " " + limitEnd.toTimeString().split(' ')[0];
-                    if (newEndStr !== currentEndStr) {
-                        document.getElementById('endDate').value = newEndStr;
-                        changed = true;
-                    }
+                    dateChangedInThisLoop = true;
+                    statusEl.innerText = "SYNCING DATES...";
+                    // CRITICAL FOR MOBILE: Force a UI refresh frame
+                    await new Promise(resolve => setTimeout(resolve, 100));
+                    break; 
                 }
 
-                if (changed) {
-                    statusEl.innerText = "RE-FETCHING TO CHECK OTHER BOUNDARY...";
-                    setTimeout(fetchAndPlot, 50); 
-                    return; // Stop current loop and restart with the one corrected date
+                // Handle ambiguous matches
+                if (data.result.includes("matches")) {
+                    showSelection(data.result, i, `Resolve "${targets[i]}"`, (id, idx) => {
+                        targets[idx] = id; renderTags(); fetchAndPlot();
+                    });
+                    return;
                 }
-            }
 
-            // 2. Handle ambiguous matches
-            if (data.result.includes("matches")) {
-                showSelection(data.result, i, `Resolve "${targets[i]}"`, (id, idx) => {
-                    targets[idx] = id; renderTags(); fetchAndPlot();
+                // Parse coordinates
+                const x = [], y = [], z = [], d = [];
+                let inData = false;
+                data.result.split('\n').forEach(line => {
+                    if (line.includes('$$SOE')) inData = true;
+                    else if (line.includes('$$EOE')) inData = false;
+                    else if (inData) {
+                        const cols = line.split(',');
+                        if (cols.length >= 5) { 
+                            d.push(cols[1].trim()); 
+                            x.push(parseFloat(cols[2])); y.push(parseFloat(cols[3])); z.push(parseFloat(cols[4])); 
+                        }
+                    }
                 });
-                return;
+                rawDataSets.push({ name: parseBodyName(data.result, "Target body name") || targets[i], x, y, z, d });
             }
 
-            // 3. Successful fetch: Parse coordinates
-            const x = [], y = [], z = [], d = [];
-            let inData = false;
-            data.result.split('\n').forEach(line => {
-                if (line.includes('$$SOE')) inData = true;
-                else if (line.includes('$$EOE')) inData = false;
-                else if (inData) {
-                    const cols = line.split(',');
-                    if (cols.length >= 5) { 
-                        d.push(cols[1].trim()); 
-                        x.push(parseFloat(cols[2])); y.push(parseFloat(cols[3])); z.push(parseFloat(cols[4])); 
-                    }
-                }
-            });
-            rawDataSets.push({ name: parseBodyName(data.result, "Target body name") || targets[i], x, y, z, d });
-        }
+            if (!dateChangedInThisLoop) break; 
+            attempts++;
 
-        // Final Render (Only reaches here if ALL targets returned valid data)
-        let processedTraces = [];
-        if (isRelative && rawDataSets.length > 0) {
-            const ref = rawDataSets[0];
-            rawDataSets.forEach((set, i) => {
-                const relX = set.x.map((v, idx) => v - ref.x[idx]);
-                const relY = set.y.map((v, idx) => v - ref.y[idx]);
-                const relZ = set.z.map((v, idx) => v - ref.z[idx]);
-                processedTraces.push(createTrace(relX, relY, relZ, set.d, set.name, palette[i % palette.length]));
-            });
-        } else {
-            rawDataSets.forEach((set, i) => {
-                processedTraces.push(createTrace(set.x, set.y, set.z, set.d, set.name, palette[i % palette.length]));
-            });
+        } catch (err) { 
+            statusEl.innerText = "ERROR"; 
+            alert("Network error. Please try again.");
+            return;
         }
-        renderPlot(processedTraces, centerInput, isRelative);
-        statusEl.innerText = `ACTIVE BODIES: ${targets.length}`;
-
-    } catch (err) { 
-        statusEl.innerText = "ERROR"; 
-        alert(err.message);
     }
+
+    // Final Rendering
+    let processedTraces = [];
+    if (isRelative && rawDataSets.length > 0) {
+        const ref = rawDataSets[0];
+        rawDataSets.forEach((set, i) => {
+            const relX = set.x.map((v, idx) => v - ref.x[idx]);
+            const relY = set.y.map((v, idx) => v - ref.y[idx]);
+            const relZ = set.z.map((v, idx) => v - ref.z[idx]);
+            processedTraces.push(createTrace(relX, relY, relZ, set.d, set.name, palette[i % palette.length]));
+        });
+    } else {
+        rawDataSets.forEach((set, i) => {
+            processedTraces.push(createTrace(set.x, set.y, set.z, set.d, set.name, palette[i % palette.length]));
+        });
+    }
+    renderPlot(processedTraces, centerInput, isRelative);
+    statusEl.innerText = `ACTIVE BODIES: ${targets.length}`;
 }
 
         function createTrace(x, y, z, d, name, color) {
