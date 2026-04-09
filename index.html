@@ -240,6 +240,7 @@ button.primary-btn { width: 100%; background: linear-gradient(135deg, #00d2ff 0%
             return match ? match[1].trim() : null;
         }
 
+
 async function fetchAndPlot() {
     const statusEl = document.getElementById('status');
     const centerInput = document.getElementById('centId').value;
@@ -251,9 +252,8 @@ async function fetchAndPlot() {
 
     let rawDataSets = [];
     let attempts = 0;
-    const maxAttempts = 5; 
+    const maxAttempts = 3; 
 
-    // We use a loop here to handle automatic date adjustments without recursion
     while (attempts < maxAttempts) {
         let currentStartStr = document.getElementById('startDate').value.trim();
         let currentEndStr = document.getElementById('endDate').value.trim();
@@ -266,10 +266,21 @@ async function fetchAndPlot() {
                 
                 const nasaUrl = `https://ssd.jpl.nasa.gov/api/horizons.api?format=json&COMMAND='${encodeURIComponent(targets[i])}'&OBJ_DATA='NO'&MAKE_EPHEM='YES'&EPHEM_TYPE='VECTORS'&CENTER='@${centerInput}'&START_TIME='${currentStartStr}'&STOP_TIME='${currentEndStr}'&STEP_SIZE='${step}'&CSV_FORMAT='YES'&VEC_TABLE='1'&REF_PLANE='${cleanRefPlane}'`;
                 
-                const res = await fetch("https://corsproxy.io/?" + encodeURIComponent(nasaUrl));
-                const data = await res.json();
+                let data;
+                try {
+                    // TRY PROXY 1 (corsproxy.io)
+                    const res = await fetch("https://corsproxy.io/?" + encodeURIComponent(nasaUrl));
+                    if (!res.ok) throw new Error();
+                    data = await res.json();
+                } catch (e) {
+                    // FALLBACK TO PROXY 2 (allorigins) - Often more reliable on mobile
+                    statusEl.innerText = "PROXY FAIL - RETRYING...";
+                    const res = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(nasaUrl)}`);
+                    const jsonWrap = await res.json();
+                    data = JSON.parse(jsonWrap.contents);
+                }
 
-                // --- RESTORED DATE SETTING LOGIC ---
+                // --- DATE ADJUSTMENT LOGIC ---
                 const priorMatch = data.result.match(/prior\s+(?:to\s+)?A\.D\.\s+([\d\- \w:]+\.\d+)/i);
                 const afterMatch = data.result.match(/after\s+A\.D\.\s+([\d\- \w:]+\.\d+)/i);
 
@@ -280,20 +291,15 @@ async function fetchAndPlot() {
                     if (priorMatch) {
                         let limitStart = new Date(priorMatch[1]);
                         limitStart.setSeconds(limitStart.getSeconds() + 1);
-                        
-                        // If user's entire window is before mission start, shift the whole window
                         if (userEnd <= limitStart) {
                             let newEnd = new Date(limitStart);
                             newEnd.setDate(newEnd.getDate() + 1);
                             document.getElementById('endDate').value = newEnd.toISOString().split('T')[0] + " 00:00:00";
                         }
                         document.getElementById('startDate').value = limitStart.toISOString().split('T')[0] + " " + limitStart.toTimeString().split(' ')[0];
-                    } 
-                    else if (afterMatch) {
+                    } else if (afterMatch) {
                         let limitEnd = new Date(afterMatch[1]);
                         limitEnd.setSeconds(limitEnd.getSeconds() - 1);
-
-                        // If user's entire window is after mission end, shift the whole window
                         if (userStart >= limitEnd) {
                             let newStart = new Date(limitEnd);
                             newStart.setDate(newStart.getDate() - 1);
@@ -301,15 +307,11 @@ async function fetchAndPlot() {
                         }
                         document.getElementById('endDate').value = limitEnd.toISOString().split('T')[0] + " " + limitEnd.toTimeString().split(' ')[0];
                     }
-
                     dateChangedInThisLoop = true;
-                    statusEl.innerText = "SYNCING DATES...";
-                    // CRITICAL FOR MOBILE: Force a UI refresh frame
-                    await new Promise(resolve => setTimeout(resolve, 100));
+                    await new Promise(r => setTimeout(r, 150));
                     break; 
                 }
 
-                // Handle ambiguous matches
                 if (data.result.includes("matches")) {
                     showSelection(data.result, i, `Resolve "${targets[i]}"`, (id, idx) => {
                         targets[idx] = id; renderTags(); fetchAndPlot();
@@ -317,7 +319,6 @@ async function fetchAndPlot() {
                     return;
                 }
 
-                // Parse coordinates
                 const x = [], y = [], z = [], d = [];
                 let inData = false;
                 data.result.split('\n').forEach(line => {
@@ -333,13 +334,11 @@ async function fetchAndPlot() {
                 });
                 rawDataSets.push({ name: parseBodyName(data.result, "Target body name") || targets[i], x, y, z, d });
             }
-
             if (!dateChangedInThisLoop) break; 
             attempts++;
-
         } catch (err) { 
-            statusEl.innerText = "ERROR"; 
-            alert("Network error. Please try again.");
+            statusEl.innerText = "CONNECTION ERROR"; 
+            console.error(err);
             return;
         }
     }
@@ -362,7 +361,6 @@ async function fetchAndPlot() {
     renderPlot(processedTraces, centerInput, isRelative);
     statusEl.innerText = `ACTIVE BODIES: ${targets.length}`;
 }
-
         function createTrace(x, y, z, d, name, color) {
             return {
                 line: {
