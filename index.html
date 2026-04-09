@@ -67,7 +67,7 @@
 
         <div class="input-group">
             <label for="centId">Coordinate Center</label>
-            <span>Origin of the grid (e.g., 'Sun' or 'Earth').</span>
+            <span>Origin of the grid (e.g., 'Sun' or 'Earth' or '399').</span>
             <input type="text" id="centId" value="Sun">
         </div>
 
@@ -75,15 +75,15 @@
             <label for="refPlane">Reference Plane</label>
             <span>Plane for X-Y orientation.</span>
             <select id="refPlane">
+                <option value="BODY EQUATOR">Body Equator</option>
                 <option value="ECLIPTIC" selected>Ecliptic</option>
                 <option value="FRAME">Frame (Equator)</option>
-                <option value="BODY EQUATOR">Body Equator</option>
             </select>
         </div>
 
         <div class="input-group">
             <label for="startDate">Start Date/Time</label>
-            <span>UTC format (YYYY-MM-DD).</span>
+            <span>UTC format (YYYY-MM-DD HH:MM:SS.SSSS).</span>
             <input type="text" id="startDate" value="2020-02-10 00:00:00">
         </div>
 
