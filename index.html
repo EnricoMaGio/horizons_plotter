@@ -77,6 +77,7 @@
             position: absolute; top: 20px; right: 20px; padding: 8px 16px; 
             background: rgba(0,0,0,0.7); backdrop-filter: blur(5px); border-radius: 30px;
             font-size: 0.7rem; border: 1px solid var(--accent); color: var(--accent); z-index: 100;
+            text-align: right;
         }
 
         #selectionOverlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.9); z-index: 2000; justify-content: center; align-items: center; }
@@ -89,12 +90,18 @@
 
     <div class="app-container">
         <div class="sidebar">
-            <div class="sidebar-header"><h2>Horizons 3D</h2></div>
+            <div class="sidebar-header"><h2>NASA JPL Horizons Plotter</h2></div>
             
+                <div style="margin-top: 10px;margin-bottom: 10px; padding: 10px; border: 1px solid var(--border); border-radius: 6px; background: rgba(255,255,255,0.03);">
+                    <p style="font-size: 0.65rem; color: var(--text-dim); margin: 0;">
+                        <strong>Note:</strong> Colored dots on the plot represent the final position of each body at the "End Date".
+                    </p>
+                </div>
+
             <div class="scroll-area">
                 <div class="input-group">
                     <label>Target Objects</label>
-                    <span>Track multiple bodies simultaneously. (e.g., 'Solar Orbiter', 'Mars')</span>
+                    <span>Track multiple bodies simultaneously.</span>
                     <div class="tag-input-container">
                         <input type="text" id="tagInput" placeholder="Add target...">
                         <button class="add-tag-btn" onclick="addTag()">+</button>
@@ -104,7 +111,7 @@
 
                 <div class="input-group">
                     <label for="centId">Coordinate Center</label>
-                    <span>Origin (e.g., 'Sun', 'Earth', 399).</span>
+                    <span>Origin of the coordinate system.</span>
                     <input type="text" id="centId" value="Sun">
                 </div>
 
@@ -142,6 +149,8 @@
                         </select>
                     </div>
                 </div>
+
+
             </div>
 
             <div class="button-container">
@@ -234,7 +243,6 @@
                         return;
                     }
 
-                    // Extract official names from the response
                     const officialTargetName = parseBodyName(data.result, "Target body name") || targets[i];
                     officialCenterName = parseBodyName(data.result, "Center body name") || centerInput;
 
@@ -249,15 +257,31 @@
                         }
                     });
 
+                    const color = palette[i % palette.length];
+
+                    // Main Trajectory Line
                     traces.push({
                         x: x, y: y, z: z, text: d, mode: 'lines', type: 'scatter3d',
-                        name: officialTargetName, // Using Official Name here
-                        line: { width: 4, color: palette[i % palette.length] }
+                        name: officialTargetName,
+                        line: { width: 4, color: color }
                     });
+
+                    // Endpoint Marker (Current Position)
+                    if (x.length > 0) {
+                        traces.push({
+                            x: [x[x.length - 1]], 
+                            y: [y[y.length - 1]], 
+                            z: [z[z.length - 1]],
+                            mode: 'markers', type: 'scatter3d',
+                            marker: { size: 6, color: color, symbol: 'circle', opacity: 1 },
+                            hoverinfo: 'skip',
+                            showlegend: false // Hide from legend
+                        });
+                    }
                 }
 
-                renderPlot(traces, officialCenterName); // Using Official Center Name here
-                statusEl.innerText = `TRACKING: ${officialCenterName.split('(')[0]}`;
+                renderPlot(traces, officialCenterName);
+                statusEl.innerText = `ACTIVE TRACKING\nCENTER: ${officialCenterName.split('(')[0].trim()}`;
             } catch (err) { statusEl.innerText = "ERROR"; alert(err.message); }
         }
 
@@ -280,7 +304,11 @@
 
         function renderPlot(traces, centerName) {
             const allX = [], allY = [], allZ = [];
-            traces.forEach(t => { allX.push(...t.x); allY.push(...t.y); allZ.push(...t.z); });
+            traces.forEach(t => { 
+                if(t.mode === 'lines') { // Only calculate range from lines to avoid marker influence
+                    allX.push(...t.x); allY.push(...t.y); allZ.push(...t.z); 
+                }
+            });
             allX.push(0); allY.push(0); allZ.push(0);
 
             const minX = Math.min(...allX), maxX = Math.max(...allX);
@@ -296,7 +324,7 @@
                 z: [midZ - halfSpan, midZ + halfSpan]
             };
 
-            const centerTrace = { x:[0], y:[0], z:[0], mode:'markers', type:'scatter3d', name:centerName, marker:{size:6, color:'#fff'} };
+            const centerTrace = { x:[0], y:[0], z:[0], mode:'markers', type:'scatter3d', name:centerName, marker:{size:8, color:'#fff'} };
 
             Plotly.newPlot('plot', [centerTrace, ...traces], {
                 paper_bgcolor: 'rgba(0,0,0,0)', margin: {l:0, r:0, b:0, t:0},
