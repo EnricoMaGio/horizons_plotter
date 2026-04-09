@@ -9,7 +9,7 @@
     <style>
         :root {
             --bg-deep: #020408;
-            --panel-glass: rgba(13, 17, 23, 0.75);
+            --panel-glass: rgba(13, 17, 23, 0.85);
             --accent: #00d2ff;
             --accent-glow: rgba(0, 210, 255, 0.4);
             --text-main: #e6edf3;
@@ -19,141 +19,153 @@
 
         body, html { height: 100%; margin: 0; overflow: hidden; font-family: 'Inter', sans-serif; background: var(--bg-deep); color: var(--text-main); }
         
-        /* Sidebar Glass Effect */
         .sidebar {
-            width: 340px; min-width: 340px; height: 100vh;
+            width: 320px; min-width: 320px; height: 100vh;
             background: var(--panel-glass);
-            backdrop-filter: blur(15px);
+            backdrop-filter: blur(20px);
             border-right: 1px solid var(--border);
-            padding: 30px;
             display: flex; flex-direction: column;
             z-index: 100;
             box-shadow: 10px 0 30px rgba(0,0,0,0.5);
-            overflow-y: auto;
         }
 
+        .sidebar-header { padding: 20px 25px 10px 25px; }
+        
         h2 { 
-            font-size: 0.9rem; margin: 0 0 25px 0; color: var(--accent); 
+            font-size: 0.85rem; margin: 0; color: var(--accent); 
             letter-spacing: 3px; text-transform: uppercase; font-weight: 600;
-            border-left: 3px solid var(--accent); padding-left: 15px;
+            border-left: 3px solid var(--accent); padding-left: 12px;
         }
 
-        .input-group { margin-bottom: 22px; display: flex; flex-direction: column; gap: 6px; }
-        .input-group label { font-size: 0.8rem; font-weight: 600; color: var(--text-main); }
-        .input-group span { font-size: 0.75rem; color: var(--text-dim); line-height: 1.4; }
+        .scroll-area {
+            flex: 1;
+            overflow-y: auto;
+            padding: 10px 25px;
+            scrollbar-width: thin;
+            scrollbar-color: var(--border) transparent;
+        }
+
+        .input-group { margin-bottom: 16px; display: flex; flex-direction: column; gap: 4px; }
+        .input-group label { font-size: 0.75rem; font-weight: 600; color: var(--text-main); }
+        .input-group span { font-size: 0.7rem; color: var(--text-dim); line-height: 1.3; margin-bottom: 2px; }
 
         input, select { 
-            padding: 12px; background: rgba(0, 0, 0, 0.4); 
-            border: 1px solid var(--border); border-radius: 8px; 
-            color: #fff; font-size: 0.85rem; font-family: 'JetBrains Mono', monospace;
-            transition: all 0.3s ease;
+            padding: 10px; background: rgba(0, 0, 0, 0.4); 
+            border: 1px solid var(--border); border-radius: 6px; 
+            color: #fff; font-size: 0.8rem; font-family: 'JetBrains Mono', monospace;
+            transition: all 0.2s ease;
         }
-        input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 10px var(--accent-glow); }
+        input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 8px var(--accent-glow); }
 
-        .step-row { display: flex; gap: 8px; }
-        #stepVal { width: 70px; }
+        .step-row { display: flex; gap: 6px; }
+        #stepVal { width: 65px; }
+
+        .button-container {
+            padding: 15px 25px 25px 25px;
+            background: linear-gradient(to top, var(--panel-glass) 80%, transparent);
+        }
 
         button { 
+            width: 100%;
             background: linear-gradient(135deg, #00d2ff 0%, #0072ff 100%);
-            color: #000; padding: 15px; border-radius: 8px; border: none; 
-            cursor: pointer; font-weight: 700; font-size: 0.85rem;
+            color: #000; padding: 14px; border-radius: 8px; border: none; 
+            cursor: pointer; font-weight: 700; font-size: 0.8rem;
             text-transform: uppercase; letter-spacing: 1px;
-            transition: all 0.3s ease; margin-top: 10px;
+            transition: all 0.3s ease;
             box-shadow: 0 4px 15px rgba(0, 210, 255, 0.2);
         }
         button:hover { transform: translateY(-2px); box-shadow: 0 6px 20px var(--accent-glow); filter: brightness(1.1); }
 
-        /* HUD Status */
         #status { 
-            position: absolute; top: 25px; right: 25px; 
-            padding: 10px 18px; background: rgba(0,0,0,0.6);
+            position: absolute; top: 20px; right: 20px; 
+            padding: 8px 16px; background: rgba(0,0,0,0.6);
             backdrop-filter: blur(5px); border-radius: 30px;
-            font-size: 0.75rem; border: 1px solid var(--accent);
+            font-size: 0.7rem; border: 1px solid var(--accent);
             color: var(--accent); z-index: 100;
             font-family: 'JetBrains Mono', monospace;
-            letter-spacing: 1px;
         }
 
         .main-content { flex: 1; position: relative; background: #000; }
         #plot { width: 100%; height: 100%; }
 
-        /* Overlay Styling */
         #selectionOverlay { 
             display: none; position: fixed; inset: 0; 
             background: rgba(0,0,0,0.85); backdrop-filter: blur(8px);
             z-index: 2000; justify-content: center; align-items: center; 
         }
         .selection-box { 
-            background: #161b22; padding: 35px; border-radius: 15px; 
-            max-width: 550px; width: 90%; max-height: 80vh; overflow-y: auto;
-            border: 1px solid var(--border); box-shadow: 0 0 40px rgba(0,0,0,1);
+            background: #161b22; padding: 30px; border-radius: 12px; 
+            max-width: 500px; width: 90%; max-height: 80vh; overflow-y: auto;
+            border: 1px solid var(--border);
         }
         .object-item { 
-            display: block; width: 100%; text-align: left; padding: 14px; 
-            margin: 10px 0; background: #0d1117; color: var(--text-main); 
-            border: 1px solid var(--border); cursor: pointer; border-radius: 8px; 
-            font-family: 'JetBrains Mono', monospace; font-size: 0.85rem;
+            display: block; width: 100%; text-align: left; padding: 12px; 
+            margin: 8px 0; background: #0d1117; color: var(--text-main); 
+            border: 1px solid var(--border); cursor: pointer; border-radius: 6px; 
+            font-family: 'JetBrains Mono', monospace; font-size: 0.8rem;
         }
         .object-item:hover { border-color: var(--accent); background: #1c2128; color: var(--accent); }
-        .close-btn { background: #30363d; color: #fff; margin-top: 15px; width: 100%; }
-
-        ::-webkit-scrollbar { width: 5px; }
-        ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 10px; }
     </style>
 </head>
 <body>
 
     <div class="sidebar">
-        <h2>Horizons 3D</h2>
+        <div class="sidebar-header">
+            <h2>Horizons 3D</h2>
+        </div>
         
-        <div class="input-group">
-            <label for="objId">Target Object</label>
-            <span>Object name or ID (e.g., 'Solar Orbiter' or '-144').</span>
-            <input type="text" id="objId" value="Solar Orbiter">
-        </div>
+        <div class="scroll-area">
+            <div class="input-group">
+                <label for="objId">Target Object</label>
+                <span>Object name or ID (e.g., 'Solar Orbiter').</span>
+                <input type="text" id="objId" value="Solar Orbiter">
+            </div>
 
-        <div class="input-group">
-            <label for="centId">Coordinate Center</label>
-            <span>Origin of the grid (e.g., 'Sun' or 'Earth' or '399').</span>
-            <input type="text" id="centId" value="Sun">
-        </div>
+            <div class="input-group">
+                <label for="centId">Coordinate Center</label>
+                <span>Origin of the grid (e.g., 'Sun').</span>
+                <input type="text" id="centId" value="Sun">
+            </div>
 
-        <div class="input-group">
-            <label for="refPlane">Reference Plane</label>
-            <span>Plane for X-Y orientation.</span>
-            <select id="refPlane">
-                <option value="BODY EQUATOR">Body Equator</option>
-                <option value="ECLIPTIC" selected>Ecliptic</option>
-                <option value="FRAME">Frame (Equator)</option>
-            </select>
-        </div>
-
-        <div class="input-group">
-            <label for="startDate">Start Date/Time</label>
-            <span>UTC format (YYYY-MM-DD HH:MM:SS).</span>
-            <input type="text" id="startDate" value="2020-02-10 00:00:00">
-        </div>
-
-        <div class="input-group">
-            <label for="endDate">End Date/Time</label>
-            <span>Ending time for trajectory.</span>
-            <input type="text" id="endDate" value="2021-02-10 00:00:00">
-        </div>
-
-        <div class="input-group">
-            <label>Step Size</label>
-            <span>Frequency of data points.</span>
-            <div class="step-row">
-                <input type="number" id="stepVal" value="1">
-                <select id="stepUnit">
-                    <option value="MINUTES">Min</option>
-                    <option value="HOURS">Hrs</option>
-                    <option value="DAYS" selected>Days</option>
+            <div class="input-group">
+                <label for="refPlane">Reference Plane</label>
+                <span>Plane for X-Y orientation.</span>
+                <select id="refPlane">
+                    <option value="BODY EQUATOR" selected>Body Equator</option>
+                    <option value="ECLIPTIC">Ecliptic</option>
+                    <option value="FRAME">Frame (Equator)</option>
                 </select>
+            </div>
+
+            <div class="input-group">
+                <label for="startDate">Start Date/Time</label>
+                <span>UTC (YYYY-MM-DD HH:MM:SS).</span>
+                <input type="text" id="startDate" value="2020-02-13 00:00:00">
+            </div>
+
+            <div class="input-group">
+                <label for="endDate">End Date/Time</label>
+                <span>Ending time for trajectory.</span>
+                <input type="text" id="endDate" value="2021-02-10 00:00:00">
+            </div>
+
+            <div class="input-group">
+                <label>Step Size</label>
+                <span>Frequency of data points.</span>
+                <div class="step-row">
+                    <input type="number" id="stepVal" value="1">
+                    <select id="stepUnit">
+                        <option value="MINUTES">Min</option>
+                        <option value="HOURS">Hrs</option>
+                        <option value="DAYS" selected>Days</option>
+                    </select>
+                </div>
             </div>
         </div>
 
-        <button onclick="fetchAndPlot()">Generate Trajectory</button>
+        <div class="button-container">
+            <button onclick="fetchAndPlot()">Generate Trajectory</button>
+        </div>
     </div>
 
     <div class="main-content">
@@ -163,10 +175,10 @@
 
     <div id="selectionOverlay">
         <div class="selection-box">
-            <h3 id="selectionTitle" style="color: var(--accent); margin-top:0;">Matches Found</h3>
-            <p id="selectionText" style="color: var(--text-dim); font-size: 0.9rem;"></p>
+            <h3 id="selectionTitle" style="color: var(--accent); margin-top:0; font-size: 1rem;">Matches Found</h3>
+            <p id="selectionText" style="color: var(--text-dim); font-size: 0.8rem;"></p>
             <div id="objectList"></div>
-            <button class="close-btn" onclick="document.getElementById('selectionOverlay').style.display='none'">Cancel</button>
+            <button style="background: #30363d; color: white; margin-top: 10px;" onclick="document.getElementById('selectionOverlay').style.display='none'">Cancel</button>
         </div>
     </div>
 
@@ -186,17 +198,15 @@
             const refPlaneRaw = document.getElementById('refPlane').value;
 
             try {
-                // Ambiguity Check for Center
                 const cCheckUrl = `https://ssd.jpl.nasa.gov/api/horizons.api?format=json&COMMAND='${encodeURIComponent(centerInput)}'`;
                 const cRes = await fetch("https://corsproxy.io/?" + encodeURIComponent(cCheckUrl));
                 const cData = await cRes.json();
                 if (cData.result && cData.result.includes("Number of matches")) {
                     showSelection(cData.result, "centId", "Select Center Body");
-                    statusEl.innerText = "WAITING FOR INPUT...";
+                    statusEl.innerText = "WAITING...";
                     return;
                 }
 
-                // Main API Data Call
                 const cleanRefPlane = refPlaneRaw.charAt(0);
                 const nasaUrl = `https://ssd.jpl.nasa.gov/api/horizons.api?format=json` + 
                     `&COMMAND='${targetInput}'` +
@@ -217,12 +227,12 @@
 
                 if (data.result && data.result.includes("Number of matches")) {
                     showSelection(data.result, "objId", "Select Target Object");
-                    statusEl.innerText = "WAITING FOR INPUT...";
+                    statusEl.innerText = "WAITING...";
                     return;
                 }
 
                 if (data.result && (data.result.includes("INPUT ERROR") || data.result.includes("Too many constants"))) {
-                    throw new Error(`JPL API Error. Please check your IDs or dates.`);
+                    throw new Error(`JPL API Error. Please check parameters.`);
                 }
 
                 let targetName = targetInput, centerName = centerInput;
@@ -248,10 +258,10 @@
                     }
                 }
 
-                if (x.length === 0) throw new Error(`No vector data found for specified range.`);
+                if (x.length === 0) throw new Error(`No data found for this range.`);
 
                 plotData(x, y, z, dates, targetName, centerName);
-                statusEl.innerText = `VIEWING: ${targetName.toUpperCase()}`;
+                statusEl.innerText = `ACTIVE: ${targetName.toUpperCase()}`;
 
             } catch (err) {
                 statusEl.innerText = "ERROR";
@@ -262,7 +272,7 @@
         function showSelection(resultText, targetFieldId, title) {
             const listDiv = document.getElementById('objectList');
             document.getElementById('selectionTitle').innerText = title;
-            document.getElementById('selectionText').innerText = `Multiple matches found for "${document.getElementById(targetFieldId).value}":`;
+            document.getElementById('selectionText').innerText = `Select identity:`;
             listDiv.innerHTML = "";
             const lines = resultText.split('\n');
             lines.forEach(line => {
