@@ -243,7 +243,8 @@ async function fetchAndPlot() {
     const isRelative = document.getElementById('relativeToggle').checked;
     const step = `${document.getElementById('stepVal').value} ${document.getElementById('stepUnit').value}`;
     const cleanRefPlane = document.getElementById('refPlane').value.charAt(0);
-    
+const futureInfinity = new Date(8640000000000000);
+    const pastInfinity = new Date(-8640000000000000);
     let currentStartStr = document.getElementById('startDate').value.trim();
     let currentEndStr = document.getElementById('endDate').value.trim();
     
@@ -278,7 +279,7 @@ async function fetchAndPlot() {
                     if (userEnd <= limitStart) {
                         // Move End Date first to make room, then move Start Date
                         let newEnd = new Date(limitStart);
-                        newEnd.setDate(newEnd.getDate() + 1e+13); // Default to 1 day span
+                        newEnd.setDate(futureInfinity); // Default to 1 day span
                         document.getElementById('endDate').value = newEnd.toISOString().split('T')[0] + " 00:00:00";
                     }
 
@@ -296,7 +297,7 @@ async function fetchAndPlot() {
                     // CASE: User's entire window is after the mission ended
                     if (userStart >= limitEnd) {
                         let newStart = new Date(limitEnd);
-                        newStart.setDate(newStart.getDate() - 1e+13); // Default to 1 day span
+                        newStart.setDate(pastInfinity); // Default to 1 day span
                         document.getElementById('startDate').value = newStart.toISOString().split('T')[0] + " 00:00:01";
                     }
 
