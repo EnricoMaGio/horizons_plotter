@@ -27,7 +27,10 @@ body, html { height: 100%; margin: 0; overflow: hidden; font-family: 'Inter', sa
     background: var(--panel-glass); backdrop-filter: blur(20px);
     border-right: 1px solid var(--border); display: flex; flex-direction: column;
     z-index: 100; box-shadow: 10px 0 30px rgba(0,0,0,0.5);
+    transition: transform 0.3s ease, margin-left 0.3s ease, margin-top 0.3s ease;
 }
+
+.sidebar.hidden { margin-left: -320px; }
 
 .sidebar-header { padding: 25px 25px 15px 25px; }
 h2 { 
@@ -72,9 +75,15 @@ input:checked + .slider:before { transform: translateX(20px); }
 button.primary-btn { width: 100%; background: linear-gradient(135deg, #00d2ff 0%, #0072ff 100%); color: #000; padding: 14px; border-radius: 8px; border: none; cursor: pointer; font-weight: 700; font-size: 0.8rem; text-transform: uppercase; }
 
 /* Main Plot Content */
-.main-content { flex: 1; position: relative; background: radial-gradient(circle at center, #0a0c10 0%, #000 100%); display: flex; flex-direction: column; }
+.main-content { flex: 1; position: relative; background: radial-gradient(circle at center, #0a0c10 0%, #000 100%); display: flex; flex-direction: column; transition: height 0.3s ease; }
 #plot { flex: 1; width: 100%; min-height: 0; }
 #status { position: absolute; top: 15px; right: 15px; padding: 6px 12px; background: rgba(0,0,0,0.7); backdrop-filter: blur(5px); border-radius: 30px; font-size: 0.65rem; border: 1px solid var(--accent); color: var(--accent); z-index: 100; }
+
+#toggleSidebar {
+    position: absolute; top: 15px; left: 15px; z-index: 101; 
+    background: var(--panel-glass); border: 1px solid var(--border); 
+    color: var(--accent); padding: 8px 12px; cursor: pointer; border-radius: 4px;
+}
 
 .info-banner-container {
     position: absolute; bottom: 10px; left: 10px; z-index: 10;
@@ -94,42 +103,17 @@ button.primary-btn { width: 100%; background: linear-gradient(135deg, #00d2ff 0%
 @media (max-width: 768px) {
     .app-container { flex-direction: column; }
     .sidebar { width: 100%; min-width: 100%; height: 45vh; border-right: none; border-bottom: 1px solid var(--border); }
+    .sidebar.hidden { margin-left: 0; margin-top: -45vh; }
+    
+    .main-content { height: 55vh; }
+    /* Limit plot height when bar is hidden so it's not "too big" */
+    .sidebar.hidden ~ .main-content { height: 80vh; flex: none; }
+
     .sidebar-header { padding: 15px; }
     .scroll-area { padding: 0 15px; }
     .button-container { padding: 10px 15px; }
-    .main-content { height: 55vh; }
     #status { top: 10px; right: 10px; }
-    .info-banner-container { display: none; } /* Hide notes on mobile to save space */
-}
-
-
-/* Sidebar transition logic */
-.sidebar {
-    transition: transform 0.3s ease, margin-left 0.3s ease, margin-top 0.3s ease;
-}
-
-/* Desktop: Slide left */
-.sidebar.hidden {
-    margin-left: -320px;
-}
-
-/* Mobile: Slide up and cap plot height */
-@media (max-width: 768px) {
-    .sidebar.hidden {
-        margin-left: 0;
-        margin-top: -45vh; /* Slides the sidebar up */
-    }
-
-    /* Keep the plot from taking over the whole screen on mobile */
-    .sidebar.hidden ~ .main-content {
-        height: 80vh; 
-        flex: none;
-    }
-    
-    .main-content {
-        transition: height 0.3s ease;
-        height: 55vh; /* Default height when sidebar is visible */
-    }
+    .info-banner-container { display: none; }
 }
     </style>
 </head>
@@ -138,12 +122,7 @@ button.primary-btn { width: 100%; background: linear-gradient(135deg, #00d2ff 0%
     <div class="app-container">
         <div class="sidebar">
             <div class="sidebar-header"><h2>NASA JPL Horizons Plotter</h2></div>
-            
-
             <div class="scroll-area">
-
-
-
                 <div class="input-group">
                     <label>Target Objects</label>
                     <span>Track multiple bodies simultaneously.</span>
@@ -153,7 +132,6 @@ button.primary-btn { width: 100%; background: linear-gradient(135deg, #00d2ff 0%
                     </div>
                     <div id="tagList" class="tag-list"></div>
                 </div>
-
 
                 <div class="switch-group">
                     <label class="switch-container">
@@ -216,20 +194,12 @@ button.primary-btn { width: 100%; background: linear-gradient(135deg, #00d2ff 0%
         </div>
 
         <div class="main-content">
-
-<button id="toggleSidebar" onclick="toggleSidebar()" style="position: absolute; top: 15px; left: 15px; z-index: 101; background: var(--panel-glass); border: 1px solid var(--border); color: var(--accent); padding: 8px; cursor: pointer; border-radius: 4px;">
-    ☰
-</button>
-
+            <button id="toggleSidebar" onclick="toggleSidebar()">☰</button>
             <div id="status">SYSTEM READY</div>
-<div class="info-banner-container">
-        <div class="info-note">
-            <strong>Note:</strong> Colored dots represent positions at End Date.
-        </div>
-        <div class="info-note">
-            <strong>Note:</strong> Dates auto-adjust to fit available data.
-        </div>
-    </div>
+            <div class="info-banner-container">
+                <div class="info-note"><strong>Note:</strong> Colored dots represent positions at End Date.</div>
+                <div class="info-note"><strong>Note:</strong> Dates auto-adjust to fit available data.</div>
+            </div>
             <div id="plot"></div>
         </div>
     </div>
@@ -269,150 +239,113 @@ button.primary-btn { width: 100%; background: linear-gradient(135deg, #00d2ff 0%
         document.getElementById('tagInput').onkeydown = (e) => { if(e.key === 'Enter') addTag(); };
         function removeTag(i) { targets.splice(i, 1); renderTags(); }
 
+        function toggleSidebar() {
+            const sidebar = document.querySelector('.sidebar');
+            const btn = document.getElementById('toggleSidebar');
+            const isMobile = window.innerWidth <= 768;
+            sidebar.classList.toggle('hidden');
+            const isHidden = sidebar.classList.contains('hidden');
+            
+            if(isMobile) btn.innerText = isHidden ? '↓' : '↑';
+            else btn.innerText = isHidden ? '→' : '☰';
+
+            setTimeout(() => { Plotly.Plots.resize('plot'); }, 310);
+        }
+
         function parseBodyName(text, field) {
             const regex = new RegExp(`${field}\\s*:\\s*([^\\(\\n\\r]+)`, 'i');
             const match = text.match(regex);
             return match ? match[1].trim() : null;
         }
 
-async function fetchAndPlot() {
-    const statusEl = document.getElementById('status');
-    const centerInput = document.getElementById('centId').value;
-    const isRelative = document.getElementById('relativeToggle').checked;
-    const step = `${document.getElementById('stepVal').value} ${document.getElementById('stepUnit').value}`;
-    const cleanRefPlane = document.getElementById('refPlane').value.charAt(0);
+        async function fetchAndPlot() {
+            const statusEl = document.getElementById('status');
+            const centerInput = document.getElementById('centId').value;
+            const isRelative = document.getElementById('relativeToggle').checked;
+            const step = `${document.getElementById('stepVal').value} ${document.getElementById('stepUnit').value}`;
+            const cleanRefPlane = document.getElementById('refPlane').value.charAt(0);
 
-    let currentStartStr = document.getElementById('startDate').value.trim();
-    let currentEndStr = document.getElementById('endDate').value.trim();
-    
-    if (targets.length === 0) { alert("Add at least one target."); return; }
-
-    statusEl.innerText = "LINKING TO NASA...";
-    let rawDataSets = [];
-
-    try {
-        for (let i = 0; i < targets.length; i++) {
-            statusEl.innerText = `FETCHING ${i+1}/${targets.length}...`;
+            let currentStartStr = document.getElementById('startDate').value.trim();
+            let currentEndStr = document.getElementById('endDate').value.trim();
             
-            const nasaUrl = `https://ssd.jpl.nasa.gov/api/horizons.api?format=json&COMMAND='${encodeURIComponent(targets[i])}'&OBJ_DATA='NO'&MAKE_EPHEM='YES'&EPHEM_TYPE='VECTORS'&CENTER='@${centerInput}'&START_TIME='${currentStartStr}'&STOP_TIME='${currentEndStr}'&STEP_SIZE='${step}'&CSV_FORMAT='YES'&VEC_TABLE='1'&REF_PLANE='${cleanRefPlane}'`;
-            
-            const res = await fetch("https://corsproxy.io/?" + encodeURIComponent(nasaUrl));
-            const data = await res.json();
+            if (targets.length === 0) { alert("Add at least one target."); return; }
+            statusEl.innerText = "LINKING TO NASA...";
 
-            // 1. Scrape error messages for limits
-            const priorMatch = data.result.match(/prior\s+(?:to\s+)?A\.D\.\s+([\d\- \w:]+\.\d+)/i);
-            const afterMatch = data.result.match(/after\s+A\.D\.\s+([\d\- \w:]+\.\d+)/i);
-
-            if (priorMatch || afterMatch) {
-                let changed = false;
-                let userStart = new Date(currentStartStr);
-                let userEnd = new Date(currentEndStr);
-
-                if (priorMatch) {
-                    let limitStart = new Date(priorMatch[1]);
-                    limitStart.setSeconds(limitStart.getSeconds() + 1); // 1s buffer
-                    
-                    // CASE: User's entire window is before the mission starts
-                    if (userEnd <= limitStart) {
-                        // Move End Date first to make room, then move Start Date
-                        let newEnd = new Date(newStart.getDate() + 1);
-                        newEnd.setDate(newEnd.getDate() + 1); // Default to 1 day span
-                        document.getElementById('endDate').value = newEnd.toISOString().split('T')[0] + " 00:00:00";
-                    }
-
-                    const newStartStr = limitStart.toISOString().split('T')[0] + " " + limitStart.toTimeString().split(' ')[0];
-                    if (newStartStr !== currentStartStr) {
-                        document.getElementById('startDate').value = newStartStr;
-                        changed = true;
-                    }
-                } 
-                else if (afterMatch) {
-                    // NASA only shows 'after' if 'prior' was okay or not checked
-                    let limitEnd = new Date(afterMatch[1]);
-                    limitEnd.setSeconds(limitEnd.getSeconds() - 1); // 1s buffer
-
-                    // CASE: User's entire window is after the mission ended
-                    if (userStart >= limitEnd) {
-                        let newStart = new Date(limitEnd);
-                        newStart.setDate(newStart.getDate() - 1); // Default to 1 day span
-                        document.getElementById('startDate').value = newStart.toISOString().split('T')[0] + " 00:00:01";
-                    }
-
-                    const newEndStr = limitEnd.toISOString().split('T')[0] + " " + limitEnd.toTimeString().split(' ')[0];
-                    if (newEndStr !== currentEndStr) {
-                        document.getElementById('endDate').value = newEndStr;
-                        changed = true;
-                    }
-                }
-
-                if (changed) {
-                    statusEl.innerText = "RE-FETCHING TO CHECK OTHER BOUNDARY...";
-                    setTimeout(fetchAndPlot, 50); 
-                    return; // Stop current loop and restart with the one corrected date
-                }
-            }
-
-            // 2. Handle ambiguous matches
-            if (data.result.includes("matches")) {
-                showSelection(data.result, i, `Resolve "${targets[i]}"`, (id, idx) => {
-                    targets[idx] = id; renderTags(); fetchAndPlot();
+            // 1. Resolve Center Ambiguity first
+            const centerCheckUrl = `https://ssd.jpl.nasa.gov/api/horizons.api?format=json&COMMAND='${encodeURIComponent(centerInput)}'&OBJ_DATA='NO'`;
+            const cRes = await fetch("https://corsproxy.io/?" + encodeURIComponent(centerCheckUrl));
+            const cData = await cRes.json();
+            if (cData.result.includes("matches")) {
+                showSelection(cData.result, -1, `Resolve Center: "${centerInput}"`, (id) => {
+                    document.getElementById('centId').value = id;
+                    fetchAndPlot();
                 });
                 return;
             }
 
-            // 3. Successful fetch: Parse coordinates
-            const x = [], y = [], z = [], d = [];
-            let inData = false;
-            data.result.split('\n').forEach(line => {
-                if (line.includes('$$SOE')) inData = true;
-                else if (line.includes('$$EOE')) inData = false;
-                else if (inData) {
-                    const cols = line.split(',');
-                    if (cols.length >= 5) { 
-                        d.push(cols[1].trim()); 
-                        x.push(parseFloat(cols[2])); y.push(parseFloat(cols[3])); z.push(parseFloat(cols[4])); 
+            let rawDataSets = [];
+            try {
+                for (let i = 0; i < targets.length; i++) {
+                    statusEl.innerText = `FETCHING ${i+1}/${targets.length}...`;
+                    const nasaUrl = `https://ssd.jpl.nasa.gov/api/horizons.api?format=json&COMMAND='${encodeURIComponent(targets[i])}'&OBJ_DATA='NO'&MAKE_EPHEM='YES'&EPHEM_TYPE='VECTORS'&CENTER='@${centerInput}'&START_TIME='${currentStartStr}'&STOP_TIME='${currentEndStr}'&STEP_SIZE='${step}'&CSV_FORMAT='YES'&VEC_TABLE='1'&REF_PLANE='${cleanRefPlane}'`;
+                    
+                    const res = await fetch("https://corsproxy.io/?" + encodeURIComponent(nasaUrl));
+                    const data = await res.json();
+
+                    if (data.result.includes("matches")) {
+                        showSelection(data.result, i, `Resolve Target: "${targets[i]}"`, (id, idx) => {
+                            targets[idx] = id; renderTags(); fetchAndPlot();
+                        });
+                        return;
                     }
+
+                    // Scrape limits
+                    const priorMatch = data.result.match(/prior\s+(?:to\s+)?A\.D\.\s+([\d\- \w:]+\.\d+)/i);
+                    const afterMatch = data.result.match(/after\s+A\.D\.\s+([\d\- \w:]+\.\d+)/i);
+                    if (priorMatch || afterMatch) {
+                        if (priorMatch) document.getElementById('startDate').value = new Date(priorMatch[1]).toISOString().replace('T',' ').split('.')[0];
+                        if (afterMatch) document.getElementById('endDate').value = new Date(afterMatch[1]).toISOString().replace('T',' ').split('.')[0];
+                        setTimeout(fetchAndPlot, 50); return;
+                    }
+
+                    const x = [], y = [], z = [], d = [];
+                    let inData = false;
+                    data.result.split('\n').forEach(line => {
+                        if (line.includes('$$SOE')) inData = true;
+                        else if (line.includes('$$EOE')) inData = false;
+                        else if (inData) {
+                            const cols = line.split(',');
+                            if (cols.length >= 5) { 
+                                d.push(cols[1].trim()); x.push(parseFloat(cols[2])); y.push(parseFloat(cols[3])); z.push(parseFloat(cols[4])); 
+                            }
+                        }
+                    });
+                    rawDataSets.push({ name: parseBodyName(data.result, "Target body name") || targets[i], x, y, z, d });
                 }
-            });
-            rawDataSets.push({ name: parseBodyName(data.result, "Target body name") || targets[i], x, y, z, d });
-        }
 
-        // Final Render (Only reaches here if ALL targets returned valid data)
-        let processedTraces = [];
-        if (isRelative && rawDataSets.length > 0) {
-            const ref = rawDataSets[0];
-            rawDataSets.forEach((set, i) => {
-                const relX = set.x.map((v, idx) => v - ref.x[idx]);
-                const relY = set.y.map((v, idx) => v - ref.y[idx]);
-                const relZ = set.z.map((v, idx) => v - ref.z[idx]);
-                processedTraces.push(createTrace(relX, relY, relZ, set.d, set.name, palette[i % palette.length]));
-            });
-        } else {
-            rawDataSets.forEach((set, i) => {
-                processedTraces.push(createTrace(set.x, set.y, set.z, set.d, set.name, palette[i % palette.length]));
-            });
+                let processedTraces = [];
+                if (isRelative && rawDataSets.length > 0) {
+                    const ref = rawDataSets[0];
+                    rawDataSets.forEach((set, i) => {
+                        const relX = set.x.map((v, idx) => v - ref.x[idx]);
+                        const relY = set.y.map((v, idx) => v - ref.y[idx]);
+                        const relZ = set.z.map((v, idx) => v - ref.z[idx]);
+                        processedTraces.push(createTrace(relX, relY, relZ, set.d, set.name, palette[i % palette.length]));
+                    });
+                } else {
+                    rawDataSets.forEach((set, i) => {
+                        processedTraces.push(createTrace(set.x, set.y, set.z, set.d, set.name, palette[i % palette.length]));
+                    });
+                }
+                renderPlot(processedTraces, centerInput, isRelative);
+                statusEl.innerText = `ACTIVE BODIES: ${targets.length}`;
+            } catch (err) { statusEl.innerText = "ERROR"; alert(err.message); }
         }
-        renderPlot(processedTraces, centerInput, isRelative);
-        statusEl.innerText = `ACTIVE BODIES: ${targets.length}`;
-
-    } catch (err) { 
-        statusEl.innerText = "ERROR"; 
-        alert(err.message);
-    }
-}
 
         function createTrace(x, y, z, d, name, color) {
             return {
-                line: {
-                    x: x, y: y, z: z, text: d, mode: 'lines', type: 'scatter3d',
-                    name: name, line: { width: 4, color: color }
-                },
-                marker: {
-                    x: [x[x.length - 1]], y: [y[y.length - 1]], z: [z[z.length - 1]],
-                    mode: 'markers', type: 'scatter3d',
-                    marker: { size: 6, color: color, symbol: 'circle', opacity: 1 },
-                    hoverinfo: 'skip', showlegend: false
-                }
+                line: { x: x, y: y, z: z, text: d, mode: 'lines', type: 'scatter3d', name: name, line: { width: 4, color: color } },
+                marker: { x: [x[x.length - 1]], y: [y[y.length - 1]], z: [z[z.length - 1]], mode: 'markers', type: 'scatter3d', marker: { size: 6, color: color }, hoverinfo: 'skip', showlegend: false }
             };
         }
 
@@ -436,23 +369,11 @@ async function fetchAndPlot() {
         function renderPlot(tracePairs, centerName, isRelative) {
             const traces = [];
             const allX = [], allY = [], allZ = [];
-
-            // ONLY draw the center body if NOT in relative mode
-            if (!isRelative) {
-                traces.push({
-                    x: [0], y: [0], z: [0], mode: 'markers', type: 'scatter3d',
-                    name: centerName, marker: { size: 8, color: '#fff' }
-                });
-            }
-
+            if (!isRelative) traces.push({ x: [0], y: [0], z: [0], mode: 'markers', type: 'scatter3d', name: centerName, marker: { size: 8, color: '#fff' } });
             tracePairs.forEach(pair => {
-                traces.push(pair.line);
-                traces.push(pair.marker);
-                allX.push(...pair.line.x);
-                allY.push(...pair.line.y);
-                allZ.push(...pair.line.z);
+                traces.push(pair.line); traces.push(pair.marker);
+                allX.push(...pair.line.x); allY.push(...pair.line.y); allZ.push(...pair.line.z);
             });
-
             const minX = Math.min(...allX, 0), maxX = Math.max(...allX, 0);
             const minY = Math.min(...allY, 0), maxY = Math.max(...allY, 0);
             const minZ = Math.min(...allZ, 0), maxZ = Math.max(...allZ, 0);
@@ -472,27 +393,6 @@ async function fetchAndPlot() {
                 uirevision: 'true'
             }, { responsive: true, displaylogo: false });
         }
-
-function toggleSidebar() {
-    const sidebar = document.querySelector('.sidebar');
-    const toggleBtn = document.getElementById('toggleSidebar');
-    const isMobile = window.innerWidth <= 768;
-    
-    sidebar.classList.toggle('hidden');
-    const isHidden = sidebar.classList.contains('hidden');
-
-    // Update icons based on device and state
-    if (isMobile) {
-        toggleBtn.innerText = isHidden ? '↓' : '↑';
-    } else {
-        toggleBtn.innerText = isHidden ? '→' : '☰';
-    }
-
-    // Recalculate Plotly layout
-    setTimeout(() => {
-        Plotly.Plots.resize('plot');
-    }, 310);
-}
 
         renderTags();
         fetchAndPlot();
