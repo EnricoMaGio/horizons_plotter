@@ -19,8 +19,11 @@
 
         body, html { height: 100%; margin: 0; overflow: hidden; font-family: 'Inter', sans-serif; background: var(--bg-deep); color: var(--text-main); }
         
+        /* Layout */
+        .app-container { display: flex; height: 100vh; width: 100vw; }
+
         .sidebar {
-            width: 320px; min-width: 320px; height: 100vh;
+            width: 320px; min-width: 320px; height: 100%;
             background: var(--panel-glass);
             backdrop-filter: blur(20px);
             border-right: 1px solid var(--border);
@@ -29,7 +32,7 @@
             box-shadow: 10px 0 30px rgba(0,0,0,0.5);
         }
 
-        .sidebar-header { padding: 20px 25px 10px 25px; }
+        .sidebar-header { padding: 25px 25px 15px 25px; }
         
         h2 { 
             font-size: 0.85rem; margin: 0; color: var(--accent); 
@@ -37,15 +40,16 @@
             border-left: 3px solid var(--accent); padding-left: 12px;
         }
 
+        /* Scrollable Section */
         .scroll-area {
             flex: 1;
             overflow-y: auto;
-            padding: 10px 25px;
+            padding: 0 25px;
             scrollbar-width: thin;
             scrollbar-color: var(--border) transparent;
         }
 
-        .input-group { margin-bottom: 16px; display: flex; flex-direction: column; gap: 4px; }
+        .input-group { margin-bottom: 18px; display: flex; flex-direction: column; gap: 4px; }
         .input-group label { font-size: 0.75rem; font-weight: 600; color: var(--text-main); }
         .input-group span { font-size: 0.7rem; color: var(--text-dim); line-height: 1.3; margin-bottom: 2px; }
 
@@ -60,12 +64,14 @@
         .step-row { display: flex; gap: 6px; }
         #stepVal { width: 65px; }
 
+        /* Pinned Button Section */
         .button-container {
-            padding: 15px 25px 25px 25px;
+            padding: 20px 25px 25px 25px;
             background: linear-gradient(to top, var(--panel-glass) 80%, transparent);
+            border-top: 1px solid var(--border);
         }
 
-        button { 
+        button.primary-btn { 
             width: 100%;
             background: linear-gradient(135deg, #00d2ff 0%, #0072ff 100%);
             color: #000; padding: 14px; border-radius: 8px; border: none; 
@@ -74,29 +80,32 @@
             transition: all 0.3s ease;
             box-shadow: 0 4px 15px rgba(0, 210, 255, 0.2);
         }
-        button:hover { transform: translateY(-2px); box-shadow: 0 6px 20px var(--accent-glow); filter: brightness(1.1); }
+        button.primary-btn:hover { transform: translateY(-2px); box-shadow: 0 6px 20px var(--accent-glow); filter: brightness(1.1); }
+
+        /* Main Viewport */
+        .main-content { flex: 1; position: relative; background: radial-gradient(circle at center, #0a0c10 0%, #000 100%); }
+        #plot { width: 100%; height: 100%; }
 
         #status { 
             position: absolute; top: 20px; right: 20px; 
-            padding: 8px 16px; background: rgba(0,0,0,0.6);
+            padding: 8px 16px; background: rgba(0,0,0,0.7);
             backdrop-filter: blur(5px); border-radius: 30px;
             font-size: 0.7rem; border: 1px solid var(--accent);
             color: var(--accent); z-index: 100;
             font-family: 'JetBrains Mono', monospace;
+            letter-spacing: 1px;
         }
 
-        .main-content { flex: 1; position: relative; background: #000; }
-        #plot { width: 100%; height: 100%; }
-
+        /* Overlay */
         #selectionOverlay { 
             display: none; position: fixed; inset: 0; 
-            background: rgba(0,0,0,0.85); backdrop-filter: blur(8px);
+            background: rgba(0,0,0,0.9); backdrop-filter: blur(10px);
             z-index: 2000; justify-content: center; align-items: center; 
         }
         .selection-box { 
             background: #161b22; padding: 30px; border-radius: 12px; 
             max-width: 500px; width: 90%; max-height: 80vh; overflow-y: auto;
-            border: 1px solid var(--border);
+            border: 1px solid var(--border); box-shadow: 0 20px 50px rgba(0,0,0,0.5);
         }
         .object-item { 
             display: block; width: 100%; text-align: left; padding: 12px; 
@@ -109,76 +118,78 @@
 </head>
 <body>
 
-    <div class="sidebar">
-        <div class="sidebar-header">
-            <h2>Horizons 3D</h2>
-        </div>
-        
-        <div class="scroll-area">
-            <div class="input-group">
-                <label for="objId">Target Object</label>
-                <span>Object name or ID (e.g., 'Solar Orbiter').</span>
-                <input type="text" id="objId" value="Solar Orbiter">
+    <div class="app-container">
+        <div class="sidebar">
+            <div class="sidebar-header">
+                <h2>Horizons 3D</h2>
             </div>
+            
+            <div class="scroll-area">
+                <div class="input-group">
+                    <label for="objId">Target Object</label>
+                    <span>Object name or ID (e.g., 'Solar Orbiter' or '-144').</span>
+                    <input type="text" id="objId" value="Solar Orbiter">
+                </div>
 
-            <div class="input-group">
-                <label for="centId">Coordinate Center</label>
-                <span>Origin of the grid (e.g., 'Sun').</span>
-                <input type="text" id="centId" value="Sun">
-            </div>
+                <div class="input-group">
+                    <label for="centId">Coordinate Center</label>
+                    <span>Origin of the grid (e.g., 'Sun' or 'Earth' or '399').</span>
+                    <input type="text" id="centId" value="Sun">
+                </div>
 
-            <div class="input-group">
-                <label for="refPlane">Reference Plane</label>
-                <span>Plane for X-Y orientation.</span>
-                <select id="refPlane">
-                    <option value="BODY EQUATOR" selected>Body Equator</option>
-                    <option value="ECLIPTIC">Ecliptic</option>
-                    <option value="FRAME">Frame (Equator)</option>
-                </select>
-            </div>
-
-            <div class="input-group">
-                <label for="startDate">Start Date/Time</label>
-                <span>UTC (YYYY-MM-DD HH:MM:SS).</span>
-                <input type="text" id="startDate" value="2020-02-13 00:00:00">
-            </div>
-
-            <div class="input-group">
-                <label for="endDate">End Date/Time</label>
-                <span>Ending time for trajectory.</span>
-                <input type="text" id="endDate" value="2021-02-10 00:00:00">
-            </div>
-
-            <div class="input-group">
-                <label>Step Size</label>
-                <span>Frequency of data points.</span>
-                <div class="step-row">
-                    <input type="number" id="stepVal" value="1">
-                    <select id="stepUnit">
-                        <option value="MINUTES">Min</option>
-                        <option value="HOURS">Hrs</option>
-                        <option value="DAYS" selected>Days</option>
+                <div class="input-group">
+                    <label for="refPlane">Reference Plane</label>
+                    <span>Plane for X-Y orientation.</span>
+                    <select id="refPlane">
+                        <option value="BODY EQUATOR">Body Equator</option>
+                        <option value="ECLIPTIC" selected>Ecliptic</option>
+                        <option value="FRAME">Frame (Equator)</option>
                     </select>
                 </div>
+
+                <div class="input-group">
+                    <label for="startDate">Start Date/Time</label>
+                    <span>UTC format (YYYY-MM-DD HH:MM:SS.SSSS).</span>
+                    <input type="text" id="startDate" value="2020-02-10 00:00:00">
+                </div>
+
+                <div class="input-group">
+                    <label for="endDate">End Date/Time</label>
+                    <span>Ending time for trajectory.</span>
+                    <input type="text" id="endDate" value="2021-02-10 00:00:00">
+                </div>
+
+                <div class="input-group">
+                    <label>Step Size</label>
+                    <span>Frequency of data points.</span>
+                    <div class="step-row">
+                        <input type="number" id="stepVal" value="1">
+                        <select id="stepUnit">
+                            <option value="MINUTES">Min</option>
+                            <option value="HOURS">Hrs</option>
+                            <option value="DAYS" selected>Days</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <div class="button-container">
+                <button class="primary-btn" onclick="fetchAndPlot()">Generate Trajectory</button>
             </div>
         </div>
 
-        <div class="button-container">
-            <button onclick="fetchAndPlot()">Generate Trajectory</button>
+        <div class="main-content">
+            <div id="status">SYSTEM READY</div>
+            <div id="plot"></div>
         </div>
-    </div>
-
-    <div class="main-content">
-        <div id="status">SYSTEM READY</div>
-        <div id="plot"></div>
     </div>
 
     <div id="selectionOverlay">
         <div class="selection-box">
-            <h3 id="selectionTitle" style="color: var(--accent); margin-top:0; font-size: 1rem;">Matches Found</h3>
-            <p id="selectionText" style="color: var(--text-dim); font-size: 0.8rem;"></p>
+            <h3 id="selectionTitle" style="color: var(--accent); margin-top:0; font-size: 1.1rem;">Specific identity required</h3>
+            <p id="selectionText" style="color: var(--text-dim); font-size: 0.85rem; margin-bottom: 20px;"></p>
             <div id="objectList"></div>
-            <button style="background: #30363d; color: white; margin-top: 10px;" onclick="document.getElementById('selectionOverlay').style.display='none'">Cancel</button>
+            <button class="object-item" style="background: #30363d; text-align: center;" onclick="document.getElementById('selectionOverlay').style.display='none'">Abort Command</button>
         </div>
     </div>
 
@@ -188,7 +199,7 @@
 
         async function fetchAndPlot() {
             const statusEl = document.getElementById('status');
-            statusEl.innerText = "LINKING TO JPL...";
+            statusEl.innerText = "LINKING TO NASA JPL...";
             
             const targetInput = document.getElementById('objId').value;
             const centerInput = document.getElementById('centId').value;
@@ -198,15 +209,17 @@
             const refPlaneRaw = document.getElementById('refPlane').value;
 
             try {
+                // Check Center Ambiguity
                 const cCheckUrl = `https://ssd.jpl.nasa.gov/api/horizons.api?format=json&COMMAND='${encodeURIComponent(centerInput)}'`;
                 const cRes = await fetch("https://corsproxy.io/?" + encodeURIComponent(cCheckUrl));
                 const cData = await cRes.json();
                 if (cData.result && cData.result.includes("Number of matches")) {
                     showSelection(cData.result, "centId", "Select Center Body");
-                    statusEl.innerText = "WAITING...";
+                    statusEl.innerText = "AWAITING CENTER ID...";
                     return;
                 }
 
+                // Main API Call
                 const cleanRefPlane = refPlaneRaw.charAt(0);
                 const nasaUrl = `https://ssd.jpl.nasa.gov/api/horizons.api?format=json` + 
                     `&COMMAND='${targetInput}'` +
@@ -227,7 +240,7 @@
 
                 if (data.result && data.result.includes("Number of matches")) {
                     showSelection(data.result, "objId", "Select Target Object");
-                    statusEl.innerText = "WAITING...";
+                    statusEl.innerText = "AWAITING TARGET ID...";
                     return;
                 }
 
@@ -258,13 +271,13 @@
                     }
                 }
 
-                if (x.length === 0) throw new Error(`No data found for this range.`);
+                if (x.length === 0) throw new Error(`No vector data found for this timeframe.`);
 
                 plotData(x, y, z, dates, targetName, centerName);
                 statusEl.innerText = `ACTIVE: ${targetName.toUpperCase()}`;
 
             } catch (err) {
-                statusEl.innerText = "ERROR";
+                statusEl.innerText = "COMMS ERROR";
                 alert(err.message);
             }
         }
@@ -272,7 +285,7 @@
         function showSelection(resultText, targetFieldId, title) {
             const listDiv = document.getElementById('objectList');
             document.getElementById('selectionTitle').innerText = title;
-            document.getElementById('selectionText').innerText = `Select identity:`;
+            document.getElementById('selectionText').innerText = `JPL requires a specific code for "${document.getElementById(targetFieldId).value}":`;
             listDiv.innerHTML = "";
             const lines = resultText.split('\n');
             lines.forEach(line => {
@@ -293,6 +306,7 @@
         }
 
         function plotData(x, y, z, dates, tName, cName) {
+            // Robust range calculation
             const combined = [...x, ...y, ...z];
             const maxVal = Math.max(...combined), minVal = Math.min(...combined);
             const midX = (Math.max(...x) + Math.min(...x)) / 2;
@@ -301,29 +315,38 @@
             const range = (maxVal - minVal) / 2;
 
             const trace = {
-                x: x, y: y, z: z, mode: 'lines', type: 'scatter3d',
-                text: dates, line: { width: 4, color: '#00d2ff' }, name: tName,
+                x: x, y: y, z: z, 
+                mode: 'lines', type: 'scatter3d',
+                text: dates, 
+                line: { width: 4, color: '#00d2ff' }, 
+                name: tName,
                 hoverlabel: { bgcolor: '#0b0e14', font: { color: '#fff', family: 'JetBrains Mono' } }
             };
 
             const center = {
-                x: [0], y: [0], z: [0], mode: 'markers', type: 'scatter3d',
-                marker: { size: 6, color: '#fff', line: { color: '#00d2ff', width: 2 } }, name: cName
+                x: [0], y: [0], z: [0], 
+                mode: 'markers', type: 'scatter3d',
+                marker: { size: 6, color: '#fff', line: { color: '#00d2ff', width: 2 } }, 
+                name: cName
             };
 
-            Plotly.newPlot('plot', [center, trace], {
-                paper_bgcolor: 'rgba(0,0,0,0)', margin: {l:0, r:0, b:0, t:0},
+            const layout = {
+                paper_bgcolor: 'rgba(0,0,0,0)',
+                margin: {l:0, r:0, b:0, t:0},
                 scene: {
-                    aspectmode: 'cube',
+                    aspectmode: 'cube', // Changed from 'scene' for better stability
                     xaxis: { range: [midX - range, midX + range], title: 'X (km)', gridcolor: '#1a1a1a', zerolinecolor: '#333' },
                     yaxis: { range: [midY - range, midY + range], title: 'Y (km)', gridcolor: '#1a1a1a', zerolinecolor: '#333' },
                     zaxis: { range: [midZ - range, midZ + range], title: 'Z (km)', gridcolor: '#1a1a1a', zerolinecolor: '#333' }
                 },
-                legend: { font: { color: 'white', size: 11 }, x: 0.1, y: 0.9 },
+                legend: { font: { color: 'white', size: 11, family: 'Inter' }, x: 0.1, y: 0.9 },
                 uirevision: 'true'
-            }, { responsive: true, displaylogo: false });
+            };
+
+            Plotly.newPlot('plot', [center, trace], layout, { responsive: true, displaylogo: false });
         }
 
+        // Automatic trigger on load
         fetchAndPlot();
     </script>
 </body>
