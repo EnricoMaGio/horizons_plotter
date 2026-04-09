@@ -31,49 +31,51 @@ async function fetchAndPlot() {
     const start = document.getElementById('startDate').value;
     const end = document.getElementById('endDate').value;
     
-    // The NASA URL
-const nasaUrl = "https://ssd.jpl.nasa.gov/api/horizons.api?format=json&COMMAND='499'&OBJ_DATA='NO'&MAKE_EPHEM='YES'&EPHEM_TYPE='VECTORS'&CENTER='500@10'&START_TIME='2006-01-01'&STOP_TIME='2006-01-20'&STEP_SIZE='1d'";
+    // 1. Dynamically build the URL based on user input
+    // Added 'CSV=YES' to make parsing easier
+    const nasaUrl = `https://ssd.jpl.nasa.gov/api/horizons.api?format=json&COMMAND='${id}'&OBJ_DATA='NO'&MAKE_EPHEM='YES'&EPHEM_TYPE='VECTORS'&CENTER='500@10'&START_TIME='${start}'&STOP_TIME='${end}'&STEP_SIZE='1d'&CSV='YES'`;
 
-
-    // NEW PROXY: Use 'corsproxy.io' correctly or 'cors-anywhere'
-    // This proxy is specifically designed to work with GitHub Pages
     const proxyUrl = "https://corsproxy.io/?" + encodeURIComponent(nasaUrl);
 
     try {
         const response = await fetch(proxyUrl);
-        
         if (!response.ok) throw new Error(`Server responded with ${response.status}`);
         
         const data = await response.json();
-        
         if (!data.result) throw new Error("NASA returned no data.");
 
-        // --- Parsing Logic ---
-        const lines = data.result.split('\n');
-        let inData = false;
         const x = [], y = [], z = [], dates = [];
 
-        lines.forEach(line => {
-            if (line.includes('$$SOE')) { inData = true; return; }
-            if (line.includes('$$EOE')) { inData = false; return; }
+        // 2. Improved Parsing for CSV Output
+        const lines = data.result.split('\n');
+        let inData = false;
+
+        for (let line of lines) {
+            if (line.includes('$$SOE')) { inData = true; continue; }
+            if (line.includes('$$EOE')) { inData = false; continue; }
+            
             if (inData) {
-                const cols = line.split(',').map(s => s.trim());
-                if (cols.length >= 5) {
-                    dates.push(cols[1]); 
+                const cols = line.split(',');
+                if (cols.length >= 4) {
+                    // With CSV='YES', the format is: Record#, Calendar Date, X, Y, Z...
+                    dates.push(cols[1].trim()); 
                     x.push(parseFloat(cols[2]));
                     y.push(parseFloat(cols[3]));
                     z.push(parseFloat(cols[4]));
                 }
             }
-        });
+        }
+
+        if (x.length === 0) {
+            alert("No data points found. Check if the Object ID is correct (e.g., '499' for Mars).");
+        }
 
         plotData(x, y, z, dates, id);
     } catch (err) {
         console.error(err);
-        alert("CORS Error Workaround Failed: " + err.message);
+        alert("Error: " + err.message);
     }
-}
-    
+}    
         function plotData(x, y, z, dates, id) {
             const trace = {
                 x: x, y: y, z: z,
