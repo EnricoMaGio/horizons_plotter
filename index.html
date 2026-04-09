@@ -1,116 +1,266 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>JPL Horizons 3D Plotter</title>
     <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
     <style>
-        body { font-family: sans-serif; margin: 20px; background: #1a1a1a; color: white; }
-        .controls { display: flex; gap: 10px; margin-bottom: 20px; flex-wrap: wrap; background: #333; padding: 15px; border-radius: 8px; }
-        input, button { padding: 8px; border-radius: 4px; border: none; }
-        button { background: #007bff; color: white; cursor: pointer; font-weight: bold; }
-        button:hover { background: #0056b3; }
-        #plot { width: 100%; height: 80vh; background: #000; }
+        :root {
+            --bg-color: #0b0e14;
+            --panel-color: #161b22;
+            --accent-color: #00d2ff;
+            --accent-hover: #0099ff;
+            --text-main: #e6edf3;
+            --text-muted: #8b949e;
+            --border-color: #30363d;
+        }
+
+        body { 
+            font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; 
+            margin: 0; 
+            background: var(--bg-color); 
+            color: var(--text-main);
+            display: flex;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        .sidebar {
+            width: 320px;
+            background: var(--panel-color);
+            border-right: 1px solid var(--border-color);
+            padding: 24px;
+            display: flex;
+            flex-direction: column;
+            gap: 18px;
+            overflow-y: auto;
+            box-shadow: 4px 0 10px rgba(0,0,0,0.3);
+            z-index: 10;
+        }
+
+        h2 { 
+            font-size: 1.1rem; 
+            margin-top: 0; 
+            color: var(--accent-color);
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 15px;
+        }
+
+        .input-group {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+
+        .input-group label {
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: var(--text-main);
+        }
+
+        .input-group span {
+            font-size: 0.72rem;
+            color: var(--text-muted);
+            line-height: 1.2;
+        }
+
+        input, select { 
+            padding: 10px; 
+            background: #0d1117;
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            color: white;
+            font-size: 0.9rem;
+            transition: border-color 0.2s;
+        }
+
+        input:focus, select:focus {
+            outline: none;
+            border-color: var(--accent-color);
+        }
+
+        button { 
+            background: var(--accent-color); 
+            color: #000; 
+            padding: 12px;
+            border-radius: 6px; 
+            border: none;
+            cursor: pointer; 
+            font-weight: bold; 
+            font-size: 0.9rem;
+            margin-top: 10px;
+            transition: transform 0.1s, background 0.2s;
+        }
+
+        button:hover { background: var(--accent-hover); }
+        button:active { transform: scale(0.98); }
+
+        .main-content {
+            flex-grow: 1;
+            position: relative;
+            background: #000;
+            overflow: hidden;
+        }
+
+        #plot { width: 100%; height: 100%; }
+
+        #status {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            padding: 8px 15px;
+            background: rgba(0,0,0,0.6);
+            border-radius: 20px;
+            font-size: 0.8rem;
+            border: 1px solid var(--border-color);
+            pointer-events: none;
+            color: var(--accent-color);
+            z-index: 100;
+        }
     </style>
 </head>
 <body>
 
-    <h2>JPL Horizons 3D Orbit Plotter</h2>
-    
-    <div class="controls">
-        <input type="text" id="objId" value="-144" placeholder="Target ID (e.g. -144)">
-        <input type="text" id="centId" value="sun" placeholder="Center ID (e.g. sun)">
-        <input type="date" id="startDate" value="2020-02-12">
-        <input type="date" id="endDate" value="2021-02-10">
-        <input type="text" id="stepsize" value="1 MINUTES" placeholder="Stepsize">
-        <button onclick="fetchAndPlot()">Plot Trajectory</button>
+    <div class="sidebar">
+        <h2>Horizons 3D</h2>
+        
+        <div class="input-group">
+            <label for="objId">Target Object ID</label>
+            <span>JPL Command ID (e.g., -144 or 499).</span>
+            <input type="text" id="objId" value="-144">
+        </div>
+
+        <div class="input-group">
+            <label for="centId">Coordinate Center</label>
+            <span>Origin point (e.g., 'sun' or 'earth').</span>
+            <input type="text" id="centId" value="sun">
+        </div>
+
+        <div class="input-group">
+            <label for="refPlane">Reference Plane</label>
+            <span>The fundamental plane of the coordinate system.</span>
+            <select id="refPlane">
+                <option value="ECLIPTIC" selected>Ecliptic (Earth Orbit Plane)</option>
+                <option value="FRAME">Frame (Earth Equator)</option>
+                <option value="BODY EQUATOR">Body Equator (Target Center)</option>
+            </select>
+        </div>
+
+        <div class="input-group">
+            <label for="startDate">Start Date & Time</label>
+            <span>Format: YYYY-MM-DD HH:MM:SS.SSSS</span>
+            <input type="text" id="startDate" value="2020-02-12 00:00:00.0000">
+        </div>
+
+        <div class="input-group">
+            <label for="endDate">End Date & Time</label>
+            <span>Format: YYYY-MM-DD HH:MM:SS.SSSS</span>
+            <input type="text" id="endDate" value="2021-02-10 00:00:00.0000">
+        </div>
+
+        <div class="input-group">
+            <label for="stepsize">Step Size</label>
+            <span>Interval (e.g., '1 DAYS', '30 MINUTES').</span>
+            <input type="text" id="stepsize" value="1 DAYS">
+        </div>
+
+        <button onclick="fetchAndPlot()">Generate Trajectory</button>
+        
+        <div style="margin-top: auto; font-size: 0.7rem; color: var(--text-muted);">
+            Data provided by NASA JPL Horizons System
+        </div>
     </div>
 
-    <div id="plot"></div>
+    <div class="main-content">
+        <div id="status">System Ready</div>
+        <div id="plot"></div>
+    </div>
 
     <script>
-async function fetchAndPlot() {
-    const id = document.getElementById('objId').value;
-    const centerId = document.getElementById('centId').value;
-    const start = document.getElementById('startDate').value;
-    const end = document.getElementById('endDate').value;
-        const step = document.getElementById('stepsize').value;
+        const plotDiv = document.getElementById('plot');
+        const resizeObserver = new ResizeObserver(() => {
+            Plotly.Plots.resize(plotDiv);
+        });
+        resizeObserver.observe(plotDiv);
 
-    // 1. Dynamically build the URL based on user input
-    // Added 'CSV=YES' to make parsing easier
-    const nasaUrl = `https://ssd.jpl.nasa.gov/api/horizons.api?format=json&COMMAND='${id}'&OBJ_DATA='NO'&MAKE_EPHEM='YES'&EPHEM_TYPE='VECTORS'&CENTER='500@${centerId}'&START_TIME='${start} UTC'&STOP_TIME='${end}'&STEP_SIZE='${step}'&CSV_FORMAT='YES'&VEC_TABLE='1'`;
-
-    const proxyUrl = "https://corsproxy.io/?" + encodeURIComponent(nasaUrl);
-
-    try {
-        const response = await fetch(proxyUrl);
-        if (!response.ok) throw new Error(`Server responded with ${response.status}`);
-        
-        const data = await response.json();
-
-// CHECK FOR AMBIGUOUS RESULTS
-        // If NASA doesn't find a direct match, it returns a list of suggestions in the 'result' field
-        if (data.result && data.result.includes("Number of matches")) {
-            alert("Multiple objects found. Please be more specific (e.g., 'Solar Orbiter' or '-144').");
-            console.log("Suggestions:", data.result);
-            return;
-        }
-
-        if (!data.result || data.result.includes("No object found")) {
-            throw new Error("NASA could not find that object.");
-        }
-
-        const x = [], y = [], z = [], dates = [];
-
-        // 2. Improved Parsing for CSV Output
-
-        let displayName = `Object ${id}`; // Fallback
-        let nameMatch = data.result.match(/Target body name:\s+([^({\n]+)/);
-        if (nameMatch && nameMatch[1]) {
-            displayName = nameMatch[1].trim();
-        }
-
-        let centerName = `Object ${centerId}`; // Fallback
-        nameMatch = data.result.match(/Center body name:\s+([^({\n]+)/);
-        if (nameMatch && nameMatch[1]) {
-            centerName = nameMatch[1].trim();
-        }
-
-        const lines = data.result.split('\n');
-        let inData = false;
-
-        for (let line of lines) {
-            if (line.includes('$$SOE')) { inData = true; continue; }
-            if (line.includes('$$EOE')) { inData = false; continue; }
+        async function fetchAndPlot() {
+            const statusEl = document.getElementById('status');
+            statusEl.innerText = "Fetching Data...";
             
-            if (inData) {
-                const cols = line.split(',');
-                if (cols.length >= 4) {
-                    // With CSV='YES', the format is: Record#, Calendar Date, X, Y, Z...
-                    dates.push(cols[1].trim()); 
-                    x.push(parseFloat(cols[2]));
-                    y.push(parseFloat(cols[3]));
-                    z.push(parseFloat(cols[4]));
+            const id = document.getElementById('objId').value;
+            const centerId = document.getElementById('centId').value;
+            const start = document.getElementById('startDate').value;
+            const end = document.getElementById('endDate').value;
+            const step = document.getElementById('stepsize').value;
+            const refPlane = document.getElementById('refPlane').value;
+
+            // Added REF_PLANE to the API query
+            const nasaUrl = `https://ssd.jpl.nasa.gov/api/horizons.api?format=json&COMMAND='${id}'&OBJ_DATA='NO'&MAKE_EPHEM='YES'&EPHEM_TYPE='VECTORS'&CENTER='500@${centerId}'&REF_PLANE='${refPlane}'&START_TIME='${start}'&STOP_TIME='${end}'&STEP_SIZE='${step}'&CSV_FORMAT='YES'&VEC_TABLE='1'`;
+            const proxyUrl = "https://corsproxy.io/?" + encodeURIComponent(nasaUrl);
+
+            try {
+                const response = await fetch(proxyUrl);
+                if (!response.ok) throw new Error(`Server responded with ${response.status}`);
+                
+                const data = await response.json();
+
+                if (data.result && data.result.includes("Number of matches")) {
+                    alert("Multiple objects found. Please be more specific.");
+                    return;
                 }
+
+                if (!data.result || data.result.includes("No object found")) {
+                    throw new Error("NASA could not find that object.");
+                }
+
+                const x = [], y = [], z = [], dates = [];
+                let displayName = `Object ${id}`; 
+                let nameMatch = data.result.match(/Target body name:\s+([^({\n]+)/);
+                if (nameMatch && nameMatch[1]) displayName = nameMatch[1].trim();
+
+                let centerName = `Object ${centerId}`; 
+                nameMatch = data.result.match(/Center body name:\s+([^({\n]+)/);
+                if (nameMatch && nameMatch[1]) centerName = nameMatch[1].trim();
+
+                const lines = data.result.split('\n');
+                let inData = false;
+                for (let line of lines) {
+                    if (line.includes('$$SOE')) { inData = true; continue; }
+                    if (line.includes('$$EOE')) { inData = false; continue; }
+                    if (inData) {
+                        const cols = line.split(',');
+                        if (cols.length >= 4) {
+                            dates.push(cols[1].trim()); 
+                            x.push(parseFloat(cols[2]));
+                            y.push(parseFloat(cols[3]));
+                            z.push(parseFloat(cols[4]));
+                        }
+                    }
+                }
+
+                if (x.length === 0) alert("No data points found. Check format/dates.");
+
+                plotData(x, y, z, dates, displayName, centerName);
+                
+                Plotly.relayout(plotDiv, { 'autosize': true });
+                statusEl.innerText = `Viewing: ${displayName}`;
+            } catch (err) {
+                console.error(err);
+                alert("Error: " + err.message);
+                statusEl.innerText = "Error Loading Data";
             }
-        }
+        }    
 
-        if (x.length === 0) {
-            alert("No data points found. Check if the Object ID is correct (e.g., '499' for Mars).");
-        }
-
-        plotData(x, y, z, dates, displayName, centerName);
-    } catch (err) {
-        console.error(err);
-        alert("Error: " + err.message);
-    }
-}    
         function plotData(x, y, z, dates, displayName, centerName) {
             const trace = {
                 x: x, y: y, z: z,
                 mode: 'lines',
                 type: 'scatter3d',
                 text: dates,
-                line: { width: 4, color: '#00f2ff' },
+                line: { width: 4, color: '#00d2ff' },
                 name: displayName
             };
 
@@ -118,28 +268,29 @@ async function fetchAndPlot() {
                 x: [0], y: [0], z: [0],
                 mode: 'markers',
                 type: 'scatter3d',
-                marker: { size: 4, color: 'white' },
-                name:  centerName
+                marker: { size: 6, color: '#ffffff', symbol: 'diamond' },
+                name: centerName
             };
 
-
             const layout = {
-                paper_bgcolor: '#050505', margin: {l:0, r:0, b:0, t:0},
-            uirevision: 'constant',
-            scene: {
-                xaxis: { showgrid: true, gridcolor: '#111', color: '#444', title: 'X [km]' },
-                yaxis: { showgrid: true, gridcolor: '#111', color: '#444', title: 'Y [km]' },
-                zaxis: { showgrid: true, gridcolor: '#111', color: '#444', title: 'Z [km]' },
-                aspectmode: 'data'
-            },
-                legend: { font: { color: 'white' } },
-showlegend: true
+                paper_bgcolor: 'rgba(0,0,0,0)',
+                plot_bgcolor: 'rgba(0,0,0,0)',
+                margin: {l:0, r:0, b:0, t:0},
+                uirevision: 'constant',
+                autosize: true,
+                scene: {
+                    xaxis: { showgrid: true, gridcolor: '#222', color: '#888', title: 'X (km)' },
+                    yaxis: { showgrid: true, gridcolor: '#222', color: '#888', title: 'Y (km)' },
+                    zaxis: { showgrid: true, gridcolor: '#222', color: '#888', title: 'Z (km)' },
+                    aspectmode: 'data'
+                },
+                legend: { font: { color: 'white' }, x: 0.05, y: 0.95 },
+                showlegend: true
             };
 
             Plotly.newPlot('plot', [center, trace], layout);
         }
 
-        // Run once on load
         fetchAndPlot();
     </script>
 </body>
