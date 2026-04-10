@@ -312,7 +312,7 @@ button.primary-btn { width: 100%; background: linear-gradient(135deg, #00d2ff 0%
 
                     // Parse Center Name from the target data on the first successful fetch
                     if (i === 0) {
-                        const cName = parseBodyName(data.result, "Center-site name") || parseBodyName(data.result, "Center body name");
+                        const cName = parseBodyName(data.result, "Center body name");
                         if (cName) resolvedCenterName = cName;
                     }
 
