@@ -271,11 +271,10 @@ button.primary-btn { width: 100%; background: linear-gradient(135deg, #00d2ff 0%
             if (targets.length === 0) { alert("Add at least one target."); return; }
             statusEl.innerText = "LINKING TO NASA...";
 
-            // 1. Resolve Center Ambiguity first
+            // 1. Resolve Center Ambiguity first (Basic check)
             const centerCheckUrl = `https://ssd.jpl.nasa.gov/api/horizons.api?format=json&COMMAND='${encodeURIComponent(centerInput)}'&OBJ_DATA='NO'`;
             const cRes = await fetch("https://corsproxy.io/?" + encodeURIComponent(centerCheckUrl));
             const cData = await cRes.json();
-            
             if (cData.result.includes("matches")) {
                 showSelection(cData.result, -1, `Resolve Center: "${centerInput}"`, (id) => {
                     document.getElementById('centId').value = id;
@@ -284,10 +283,9 @@ button.primary-btn { width: 100%; background: linear-gradient(135deg, #00d2ff 0%
                 return;
             }
 
-            // Scrape the center name from the center resolution result
-            let centerDisplayName = parseBodyName(cData.result, "Center body name") || centerInput;
-
             let rawDataSets = [];
+            let resolvedCenterName = centerInput; // Fallback
+
             try {
                 for (let i = 0; i < targets.length; i++) {
                     statusEl.innerText = `FETCHING ${i+1}/${targets.length}...`;
@@ -310,6 +308,12 @@ button.primary-btn { width: 100%; background: linear-gradient(135deg, #00d2ff 0%
                         if (priorMatch) document.getElementById('startDate').value = new Date(priorMatch[1]).toISOString().replace('T',' ').split('.')[0];
                         if (afterMatch) document.getElementById('endDate').value = new Date(afterMatch[1]).toISOString().replace('T',' ').split('.')[0];
                         setTimeout(fetchAndPlot, 50); return;
+                    }
+
+                    // Parse Center Name from the target data on the first successful fetch
+                    if (i === 0) {
+                        const cName = parseBodyName(data.result, "Center-site name") || parseBodyName(data.result, "Center body name");
+                        if (cName) resolvedCenterName = cName;
                     }
 
                     const x = [], y = [], z = [], d = [];
@@ -341,7 +345,7 @@ button.primary-btn { width: 100%; background: linear-gradient(135deg, #00d2ff 0%
                         processedTraces.push(createTrace(set.x, set.y, set.z, set.d, set.name, palette[i % palette.length]));
                     });
                 }
-                renderPlot(processedTraces, centerDisplayName, isRelative);
+                renderPlot(processedTraces, resolvedCenterName, isRelative);
                 statusEl.innerText = `ACTIVE BODIES: ${targets.length}`;
             } catch (err) { statusEl.innerText = "ERROR"; alert(err.message); }
         }
@@ -370,10 +374,10 @@ button.primary-btn { width: 100%; background: linear-gradient(135deg, #00d2ff 0%
             document.getElementById('selectionOverlay').style.display = 'flex';
         }
 
-        function renderPlot(tracePairs, centerDisplayName, isRelative) {
+        function renderPlot(tracePairs, centerName, isRelative) {
             const traces = [];
             const allX = [], allY = [], allZ = [];
-            if (!isRelative) traces.push({ x: [0], y: [0], z: [0], mode: 'markers', type: 'scatter3d', name: centerDisplayName, marker: { size: 8, color: '#fff' } });
+            if (!isRelative) traces.push({ x: [0], y: [0], z: [0], mode: 'markers', type: 'scatter3d', name: centerName, marker: { size: 8, color: '#fff' } });
             tracePairs.forEach(pair => {
                 traces.push(pair.line); traces.push(pair.marker);
                 allX.push(...pair.line.x); allY.push(...pair.line.y); allZ.push(...pair.line.z);
